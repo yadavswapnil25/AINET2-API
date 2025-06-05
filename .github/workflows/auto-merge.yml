@@ -19,7 +19,7 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git checkout master
+          git checkout main
           git pull origin main
           git merge origin/dev --no-ff -m "Auto-merged dev into main"
           git push origin main
