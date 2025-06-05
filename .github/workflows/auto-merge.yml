@@ -24,7 +24,8 @@ jobs:
         run: |
           git fetch origin
           git checkout main
-          git merge origin/dev --no-edit
+          git pull origin main
+          git merge origin/dev --no-ff --allow-unrelated-histories -m "Auto-merged dev into main"
           git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
