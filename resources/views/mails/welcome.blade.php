@@ -9,7 +9,7 @@
 
     <p>Thank you for becoming a member of <strong>AINET</strong>.</p>
 
-    <p>We’re excited to have you with us. You can now enjoy:</p>
+    <p>We’re excited to have you with us.</p>
     <p>
         An account has been created for you on
         Use the details <a href="{{ $mailHelper->portalLink('login') }}" target="_blank">Log In</a>
