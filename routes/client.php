@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\MembershipController;
 
 Route::get('/test', function () {
     return response()->json([
@@ -8,3 +9,5 @@ Route::get('/test', function () {
         'message' => 'API working fine!',
     ]);
 });
+
+Route::post('/membership-signup', [MembershipController::class, 'signup']);
