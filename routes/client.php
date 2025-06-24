@@ -7,7 +7,7 @@ use App\Http\Controllers\Client\PaymentController;
 Route::get('/test', function () {
     return response()->json([
         'success' => true,
-        'message' => 'API working fine!',
+        'message' => 'API working fines!',
     ]);
 });
 
