@@ -1,0 +1,57 @@
+name: Laravel API Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2️⃣ Setup PHP
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, bcmath, pdo, mysql, zip, fileinfo
+          tools: composer
+
+      # 3️⃣ Install Composer dependencies
+      - name: Install dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      # 4️⃣ Upload Laravel project to server (excluding vendor & node_modules)
+      - name: Upload Laravel project
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./"
+          target: "/var/www/AINET2-API"
+          rm: false
+          strip_components: 1
+
+      # 5️⃣ SSH into server to complete deployment
+      - name: Deploy Laravel on server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd /var/www/AINET2-API
+            composer install --no-dev --optimize-autoloader
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan migrate --force
+            sudo systemctl reload php8.3-fpm
+            sudo systemctl reload nginx
+
