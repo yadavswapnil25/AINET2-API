@@ -38,6 +38,7 @@ class User extends Authenticatable
         'membership_type',
         'membership_plan',
         'pin',
+        'image'
     ];
 
     /**
@@ -61,5 +62,11 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    // Add this accessor to always return the full image URL
+    public function getImageUrlAttribute()
+    {
+        return $this->image ? asset('storage/' . $this->image) : null;
     }
 }

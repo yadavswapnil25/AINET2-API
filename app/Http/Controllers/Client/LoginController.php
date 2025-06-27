@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers\Client;
 
-use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Traits\Response;
+use App\Enums\GenderEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Validation\ValidationException;
-use App\Traits\Response;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Validation\Rules\Enum;
 
 class LoginController extends Controller
 {
@@ -94,5 +96,47 @@ class LoginController extends Controller
             'success' => false,
             'message' => "The provided credentials do not match our records.",
         ], 401);
+    }
+
+    public function profile(Request $request)
+    {
+        $user = $request->user();
+        // Add image URL if image exists
+        if ($user->image) {
+            $user->image_url = asset('storage/' . $user->image);
+        }
+        return $this->success('User profile fetched successfully.', 200, [
+            'user' => $user
+        ]);
+    }
+
+    public function updateProfile(Request $request, $id): JsonResponse
+    {
+        $user = User::findOrFail($id);
+
+        // Use $request->all() for validation to support form-data
+        $validated = validator($request->all(), [
+            'name' => 'sometimes|string|max:255',
+            'first_name' => 'sometimes|string|max:255',
+            'last_name' => 'sometimes|string|max:255',
+            'mobile' => 'sometimes|string|max:20',
+            'gender' => ['sometimes', 'nullable', new Enum(GenderEnum::class)],
+            'dob' => 'sometimes|date_format:Y-m-d',
+            'address' => 'sometimes|string|max:255',
+            'image' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ])->validate();
+        
+        if ($request->hasFile('image')) {
+            $image = $request->file('image');
+            $path = $image->store('profile_images', 'public');
+            $validated['image'] = $path;
+        }
+
+        $user->fill($validated);
+        $user->save();
+
+        return $this->success('Profile updated successfully.', 200, [
+            'user' => $user
+        ]);
     }
 }
