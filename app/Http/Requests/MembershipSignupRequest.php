@@ -35,6 +35,16 @@ class MembershipSignupRequest extends FormRequest
             'password'          => 'required|string|min:6|confirmed',
             'membership_type'   => 'required|in:Individual,Institutional',
             'membership_plan'   => 'required|in:Annual,LongTerm,Overseas',
+            'has_member_any'=>['sometimes','nullable', 'boolean'],
+            'name_association'=>['nullable','string'],
+            'expectation'=>['nullable','string'],
+            'has_newsletter'=>['sometimes','nullable', 'boolean'],
+            'title'=>['nullable','string'],
+            'address_institution'=>['nullable','string'],   
+            'name_institution'=>['nullable','string'],
+            'type_institution'=>['nullable','string'],
+            'other_institution'=>['nullable','string'],
+            'contact_person'=>['nullable','string'],
         ];
     }
 }

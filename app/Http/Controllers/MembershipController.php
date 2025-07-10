@@ -42,7 +42,17 @@ class MembershipController extends Controller
                 'membership_type' => $data['membership_type'],
                 'membership_plan' => $data['membership_plan'],
                 'pin' => $data['pin'],
-                'ref' => Str::uuid(), // Generate a unique ref
+                'ref' => Str::uuid(), 
+                'has_member_any' => $data['has_member_any'],
+                'name_association' => $data['name_association'],
+                'expectation' => $data['expectation'],
+                'has_newsletter' => $data['has_newsletter'],
+                'title' => $data['title'],
+                'address_institution' => $data['address_institution'],
+                'name_institution' => $data['name_institution'],
+                'type_institution' => $data['type_institution'],
+                'other_institution' => $data['other_institution'],
+                'contact_person' => $data['contact_person'],
             ]);
             // Send welcome email after successful user creation
             try {
