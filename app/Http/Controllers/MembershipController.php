@@ -40,6 +40,7 @@ class MembershipController extends Controller
                 'district' => $data['district'],
                 'teaching_exp' => $data['teaching_exp'],
                 'membership_type' => $data['membership_type'],
+                'type'  => $data['membership_type'],
                 'membership_plan' => $data['membership_plan'],
                 'pin' => $data['pin'],
                 'ref' => Str::uuid(), 
