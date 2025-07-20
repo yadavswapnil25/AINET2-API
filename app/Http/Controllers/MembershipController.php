@@ -18,45 +18,79 @@ class MembershipController extends Controller
         try {
             \DB::beginTransaction();
             $data = $request->validated();
+
+            // Safely get values with null coalescing to avoid undefined array key errors
+            $firstName = $data['first_name'] ?? '';
+            $lastName = $data['last_name'] ?? '';
+            $email = $data['email'] ?? '';
+            $password = $data['password'] ?? '';
+            $qualification = $data['qualification'] ?? null;
+            $areaOfWork = $data['area_of_work'] ?? null;
+            $gender = $data['gender'] ?? null;
+            $mobile = $data['mobile'] ?? null;
+            $whatsappNo = $data['whatsapp_no'] ?? null;
+            $dob = $data['dob'] ?? null;
+            $address = $data['address'] ?? null;
+            $state = $data['state'] ?? null;
+            $district = $data['district'] ?? null;
+            $teachingExp = $data['teaching_exp'] ?? null;
+            $membershipType = $data['membership_type'] ?? null;
+            $membershipPlan = $data['membership_plan'] ?? null;
+            $pin = $data['pin'] ?? null;
+            $hasMemberAny = $data['has_member_any'] ?? null;
+            $nameAssociation = $data['name_association'] ?? null;
+            $expectation = $data['expectation'] ?? null;
+            $hasNewsletter = $data['has_newsletter'] ?? null;
+            $title = $data['title'] ?? null;
+            $addressInstitution = $data['address_institution'] ?? null;
+            $nameInstitution = $data['name_institution'] ?? null;
+            $typeInstitution = $data['type_institution'] ?? null;
+            $otherInstitution = $data['other_institution'] ?? null;
+            $contactPerson = $data['contact_person'] ?? null;
+            $emailPerson = $data['emailperson'] ?? null;
+            $mobilePerson = $data['mobileperson'] ?? null;
+            $collaborate = $data['collaborate'] ?? null;
+
             // Convert dob to Y-m-d format if needed
-            if (isset($data['dob']) && preg_match('/\d{2}\/\d{2}\/\d{4}/', $data['dob'])) {
-                $dob = \DateTime::createFromFormat('d/m/Y', $data['dob']);
-                $data['dob'] = $dob ? $dob->format('Y-m-d') : null;
+            if ($dob && preg_match('/\d{2}\/\d{2}\/\d{4}/', $dob)) {
+                $dobObj = \DateTime::createFromFormat('d/m/Y', $dob);
+                $dob = $dobObj ? $dobObj->format('Y-m-d') : null;
             }
+
             $user = User::create([
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'name' => $data['first_name'] . ' ' . $data['last_name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-                'qualification'   => is_array($data['qualification']) ? json_encode($data['qualification']) : $data['qualification'],
-                'area_of_work'    => is_array($data['area_of_work']) ? json_encode($data['area_of_work']) : $data['area_of_work'],
-                'gender' => $data['gender'],
-                'mobile' => $data['mobile'],
-                'whatsapp_no' => $data['whatsapp_no'],
-                'dob' => $data['dob'],
-                'address' => $data['address'],
-                'state' => $data['state'],
-                'district' => $data['district'],
-                'teaching_exp' => $data['teaching_exp'],
-                'membership_type' => $data['membership_type'],
-                'type'  => $data['membership_type'],
-                'membership_plan' => $data['membership_plan'],
-                'pin' => $data['pin'],
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'name' => trim($firstName . ' ' . $lastName),
+                'email' => $email,
+                'password' => Hash::make($password),
+                'qualification'   => is_array($qualification) ? json_encode($qualification) : $qualification,
+                'area_of_work'    => is_array($areaOfWork) ? json_encode($areaOfWork) : $areaOfWork,
+                'gender' => $gender,
+                'mobile' => $mobile,
+                'whatsapp_no' => $whatsappNo,
+                'dob' => $dob,
+                'address' => $address,
+                'state' => $state,
+                'district' => $district,
+                'teaching_exp' => $teachingExp,
+                'membership_type' => $membershipType,
+                'type'  => $membershipType,
+                'membership_plan' => $membershipPlan,
+                'pin' => $pin,
                 'ref' => Str::uuid(), 
-                'has_member_any' => $data['has_member_any'],
-                'association ' => $data['name_association'],
-                'expectations' => $data['expectation'],
-                'receive' => $data['has_newsletter'],
-                'title' => $data['title'],
-                'address' => $data['address_institution'],
-                'name' => $data['name_institution'],
-                'inst_type' => $data['type_institution'],
-                'othertype' => $data['other_institution'],
-                'person' => $data['contact_person'],
-                'emailperson ' => $data['emailperson'],
-                'mobileperson' => $data['mobileperson'],
-                'collaborate' => $data['collaborate'],
+                'has_member_any' => $hasMemberAny,
+                'association ' => $nameAssociation,
+                'expectations' => $expectation,
+                'receive' => $hasNewsletter,
+                'title' => $title,
+                'address' => $addressInstitution,
+                'name' => $nameInstitution,
+                'inst_type' => $typeInstitution,
+                'othertype' => $otherInstitution,
+                'person' => $contactPerson,
+                'emailperson ' => $emailPerson,
+                'mobileperson' => $mobilePerson,
+                'collaborate' => $collaborate,
             ]);
             // Send welcome email after successful user creation
             try {

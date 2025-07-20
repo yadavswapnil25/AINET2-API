@@ -39,7 +39,6 @@ class User extends Authenticatable
         'membership_plan',
         'pin',
         'image',
-        'has_member_any',
         'name_association',
         'expectation',
         'has_newsletter',
