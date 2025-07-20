@@ -55,7 +55,7 @@ class MembershipController extends Controller
                 'person' => $data['contact_person'],
                 'emailperson ' => $data['emailperson'],
                 'mobileperson' => $data['mobileperson'],
-                'collaborate' => $data['mobileperson'],
+                'collaborate' => $data['collaborate'],
             ]);
             // Send welcome email after successful user creation
             try {
