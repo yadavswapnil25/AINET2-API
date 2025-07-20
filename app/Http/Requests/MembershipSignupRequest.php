@@ -45,6 +45,9 @@ class MembershipSignupRequest extends FormRequest
             'type_institution'=>['nullable','string'],
             'other_institution'=>['nullable','string'],
             'contact_person'=>['nullable','string'],
+            'emailperson'=>['nullable','email'],
+            'mobileperson'=>['nullable','string'],
+            'collaborate'=>['nullable','nullable','boolean'],
         ];
     }
 }
