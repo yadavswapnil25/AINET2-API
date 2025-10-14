@@ -1,0 +1,439 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "AINET API Collection",
+		"description": "API collection for AINET PPF and DRF form submissions",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "PPF (Paper Presentation Form)",
+			"item": [
+				{
+					"name": "Submit PPF - API",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});",
+									"",
+									"pm.test('Response contains ID', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"});",
+									"",
+									"pm.test('Response time is less than 2000ms', function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"main_title\": \"Dr.\",\n    \"main_name\": \"John Doe\",\n    \"main_work\": \"University of Technology\",\n    \"presenter_main_country_code\": \"+91\",\n    \"main_phone\": \"9876543210\",\n    \"presenter_main_email\": \"john.doe@university.edu\",\n    \"pr_area\": \"Artificial Intelligence\",\n    \"pr_area_specify\": \"Machine Learning in Healthcare\",\n    \"pr_nature\": \"Research Paper\",\n    \"pr_abstract\": \"This paper presents a novel approach to machine learning applications in healthcare, focusing on early disease detection and treatment optimization.\",\n    \"presenter_bio\": \"Dr. John Doe is a renowned researcher in AI and healthcare with over 10 years of experience.\",\n    \"pr_title\": \"AI-Driven Healthcare: A Revolutionary Approach\",\n    \"co1_title\": \"Prof.\",\n    \"co1_name\": \"Jane Smith\",\n    \"co1_work\": \"Medical Research Institute\",\n    \"co1_country_code\": \"+1\",\n    \"co1_phone\": \"5551234567\",\n    \"co1_email\": \"jane.smith@medical.edu\",\n    \"co_presenter_1_bio\": \"Prof. Jane Smith specializes in medical AI applications.\",\n    \"co2_title\": \"Dr.\",\n    \"co2_name\": \"Mike Johnson\",\n    \"co2_work\": \"Tech Solutions Inc.\",\n    \"co2_country_code\": \"+44\",\n    \"co2_phone\": \"2071234567\",\n    \"co2_email\": \"mike.johnson@techsolutions.com\",\n    \"co_presenter_2_bio\": \"Dr. Mike Johnson is an expert in healthcare technology implementation.\",\n    \"pr3_bio\": \"Additional presenter bio information.\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2025ppf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2025ppf"
+							]
+						},
+						"description": "Submit PPF with full data including co-presenters"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit PPF - Minimal Data",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"main_title\": \"Dr.\",\n    \"main_name\": \"Alice Brown\",\n    \"main_work\": \"Research Institute\",\n    \"presenter_main_country_code\": \"+91\",\n    \"main_phone\": \"9123456789\",\n    \"presenter_main_email\": \"alice.brown@research.edu\",\n    \"pr_area\": \"Data Science\",\n    \"pr_nature\": \"Case Study\",\n    \"pr_abstract\": \"A comprehensive case study on data science applications in business analytics.\",\n    \"presenter_bio\": \"Alice Brown is a data scientist with expertise in business analytics.\",\n    \"pr_title\": \"Data Science in Business: A Case Study Approach\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2025ppf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2025ppf"
+							]
+						},
+						"description": "Submit PPF with only required fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit PPF - Validation Error",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 422', function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test('Response has error status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(false);",
+									"});",
+									"",
+									"pm.test('Response contains validation errors', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errors).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"main_title\": \"Dr.\",\n    \"main_name\": \"\",\n    \"main_work\": \"\",\n    \"presenter_main_country_code\": \"\",\n    \"main_phone\": \"\",\n    \"presenter_main_email\": \"invalid-email\",\n    \"pr_area\": \"\",\n    \"pr_nature\": \"\",\n    \"pr_abstract\": \"\",\n    \"presenter_bio\": \"\",\n    \"pr_title\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2025ppf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2025ppf"
+							]
+						},
+						"description": "Test validation errors with missing required fields and invalid email"
+					},
+					"response": []
+				}
+			],
+			"description": "Paper Presentation Form endpoints"
+		},
+		{
+			"name": "DRF (Delegation Registration Form)",
+			"item": [
+				{
+					"name": "Submit DRF - API",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});",
+									"",
+									"pm.test('Response contains ID', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('id');",
+									"});",
+									"",
+									"pm.test('Response time is less than 2000ms', function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"you_are_register_as\": \"Individual\",\n    \"pre_title\": \"Dr.\",\n    \"member\": \"Yes\",\n    \"name\": \"Sarah Wilson\",\n    \"gender\": \"Female\",\n    \"age\": 35,\n    \"institution\": \"Global Research Institute\",\n    \"address\": \"123 Research Avenue\",\n    \"city\": \"Mumbai\",\n    \"pincode\": \"400001\",\n    \"state\": \"Maharashtra\",\n    \"country_code\": \"+91\",\n    \"phone_no\": \"9876543210\",\n    \"email\": \"sarah.wilson@research.edu\",\n    \"areas\": [\"Technology\", \"Healthcare\", \"Other\"],\n    \"other\": \"Environmental Science\",\n    \"experience\": \"5-10 years\",\n    \"conference\": \"Yes\",\n    \"types\": [\"Workshop\", \"Panel Discussion\", \"Networking\"]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2020drf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2020drf"
+							]
+						},
+						"description": "Submit DRF with full data including areas and conference preferences"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit DRF - Minimal Data",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"you_are_register_as\": \"Student\",\n    \"pre_title\": \"Mr.\",\n    \"member\": \"No\",\n    \"name\": \"David Lee\",\n    \"gender\": \"Male\",\n    \"age\": 25,\n    \"institution\": \"Tech University\",\n    \"address\": \"456 Student Street\",\n    \"city\": \"Delhi\",\n    \"pincode\": \"110001\",\n    \"state\": \"Delhi\",\n    \"country_code\": \"+91\",\n    \"phone_no\": \"9123456789\",\n    \"email\": \"david.lee@techuniv.edu\",\n    \"conference\": \"No\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2020drf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2020drf"
+							]
+						},
+						"description": "Submit DRF with only required fields"
+					},
+					"response": []
+				},
+				{
+					"name": "Submit DRF - Validation Error",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 422', function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test('Response has error status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(false);",
+									"});",
+									"",
+									"pm.test('Response contains validation errors', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.errors).to.be.an('object');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"you_are_register_as\": \"\",\n    \"pre_title\": \"\",\n    \"member\": \"\",\n    \"name\": \"\",\n    \"gender\": \"\",\n    \"age\": \"invalid\",\n    \"institution\": \"\",\n    \"address\": \"\",\n    \"city\": \"\",\n    \"pincode\": \"\",\n    \"state\": \"\",\n    \"country_code\": \"\",\n    \"phone_no\": \"\",\n    \"email\": \"invalid-email\",\n    \"conference\": \"\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/ainet2020drf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"ainet2020drf"
+							]
+						},
+						"description": "Test validation errors with missing required fields and invalid data"
+					},
+					"response": []
+				}
+			],
+			"description": "Delegation Registration Form endpoints"
+		},
+		{
+			"name": "Test Endpoints",
+			"item": [
+				{
+					"name": "API Health Check",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('API is working', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.success).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/test",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"test"
+							]
+						},
+						"description": "Test if API is working"
+					},
+					"response": []
+				}
+			],
+			"description": "General test endpoints"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}

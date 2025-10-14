@@ -300,11 +300,8 @@
         <table cellspacing="0" cellpadding="0" border="0" align="center" width="100%" role="presentation">
             <tr>
                 <td class="content__header">
-                        @isset($mailHelper->logo)
-                            <img src="{{ $mailHelper->logo }}" border="0" />
-                        @else
-                            <h3>{{ config('app.name') }}</h3>
-                        @endisset
+                    
+                            <img src="https://theainet.net/footlogo.png" border="0" />
                     
                 </td>
             </tr>
