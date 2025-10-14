@@ -62,7 +62,7 @@ class FormController extends Controller
                 return $this->success('PPF submitted successfully', 201, [ 'id' => $ppf->id ]);
             }
 
-           return redirect()->route('form.ppf')->with('status','success');
+           
         } catch (\Throwable $e) {
             if ($request->expectsJson()) {
                 return $this->error('Unable to submit PPF', 500, [ 'exception' => $e->getMessage() ]);
@@ -112,7 +112,7 @@ class FormController extends Controller
             if ($request->expectsJson()) {
                 return $this->success('DRF submitted successfully', 201, [ 'id' => $drf->id ]);
             }
-            return redirect('ainet2020drf')->with('status','success');
+            
         } catch (\Throwable $e) {
             if ($request->expectsJson()) {
                 return $this->error('Unable to submit DRF', 500, [ 'exception' => $e->getMessage() ]);
