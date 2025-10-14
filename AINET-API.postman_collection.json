@@ -359,6 +359,177 @@
 			"description": "Delegation Registration Form endpoints"
 		},
 		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "Check User by Membership ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});",
+									"",
+									"pm.test('Response contains exists field', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('exists');",
+									"});",
+									"",
+									"pm.test('Response time is less than 2000ms', function () {",
+									"    pm.expect(pm.response.responseTime).to.be.below(2000);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"membership_id\": \"M12345\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/check-user",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"check-user"
+							]
+						},
+						"description": "Check if user exists by membership ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Check User - Not Found",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('User does not exist', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data.exists).to.eql(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"membership_id\": \"INVALID123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/check-user",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"check-user"
+							]
+						},
+						"description": "Test with non-existent membership ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Check User - Validation Error",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 422', function () {",
+									"    pm.response.to.have.status(422);",
+									"});",
+									"",
+									"pm.test('Response has error status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(false);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/check-user",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"check-user"
+							]
+						},
+						"description": "Test validation error with missing membership_id"
+					},
+					"response": []
+				}
+			],
+			"description": "User management endpoints"
+		},
+		{
 			"name": "Test Endpoints",
 			"item": [
 				{

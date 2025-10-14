@@ -17,6 +17,7 @@ Route::post('/membership-signup', [MembershipController::class, 'signup']);
 Route::get('eventValidationHandle', [PaymentController::class, 'eventValidationHandle']);
 Route::post('/ainet2025ppf', [FormController::class, 'storePpfs']);
 Route::post('/ainet2020drf',[FormController::class, 'storeDrfs']);
+Route::post('/check-user', [FormController::class, 'checkUserExists']);
 Route::post('/auth/login', [LoginController::class, 'login'])->name('login');
 Route::middleware('auth:api')->group(function () {
     Route::get('/auth/profile', [LoginController::class, 'profile']);

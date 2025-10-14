@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Client;
 
 use App\Models\Drf;
 use App\Models\Ppf;
+use App\Models\User;
 use App\Traits\Response;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePpfRequest;
 use App\Http\Requests\StoreDrfRequest;
+use Illuminate\Support\Facades\DB;
 
 class FormController extends Controller
 {
@@ -16,7 +18,8 @@ class FormController extends Controller
 
     public function storePpfs(StorePpfRequest $request){
         try {
-            $ppf = new Ppf;
+            return DB::transaction(function () use ($request) {
+                $ppf = new Ppf;
 
             $ppf->main_title = $request->main_title;
             $ppf->main_name = $request->main_name;
@@ -58,25 +61,32 @@ class FormController extends Controller
             $ppf->pr4_bio = $request->pr3_bio;
             $ppf->save();
 
-            if ($request->expectsJson()) {
                 return $this->success('PPF submitted successfully', 201, [ 'id' => $ppf->id ]);
-            }
-
-           
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Transaction automatically rolls back on exception
+            return $this->error('Database error occurred while saving PPF', 500, [ 
+                'exception' => 'Database transaction failed',
+                'error_code' => $e->getCode(),
+                'message' => $e->getMessage()
+            ]);
         } catch (\Throwable $e) {
-            if ($request->expectsJson()) {
-                return $this->error('Unable to submit PPF', 500, [ 'exception' => $e->getMessage() ]);
-            }
-            return $this->error('Unable to submit PPF', 500, [ 'exception' => $e->getMessage() ]);
+            // Transaction automatically rolls back on exception
+            return $this->error('Unable to submit PPF', 500, [ 
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
         }
     }
 
 
     public function storeDrfs(StoreDrfRequest $request){
         try {
-            $drf = new Drf;
+            return DB::transaction(function () use ($request) {
+                $drf = new Drf;
 
-            $drf->is_member = $request->member;
+                $drf->member = $request->member;
             $drf->you_are_register_as = $request->you_are_register_as;
             $drf->pre_title = $request->pre_title;
             $drf->name = $request->name;
@@ -107,17 +117,80 @@ class FormController extends Controller
                 $drf->conference = $request->conference;
             }
             
-            $drf->save();
+                $drf->save();
 
-            if ($request->expectsJson()) {
                 return $this->success('DRF submitted successfully', 201, [ 'id' => $drf->id ]);
+            });
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Transaction automatically rolls back on exception
+            return $this->error('Database error occurred while saving DRF', 500, [ 
+                'exception' => 'Database transaction failed',
+                'error_code' => $e->getCode(),
+                'message' => $e->getMessage()
+            ]);
+        } catch (\Throwable $e) {
+            // Transaction automatically rolls back on exception
+            return $this->error('Unable to submit DRF', 500, [ 
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Check if user exists by membership ID
+     */
+    public function checkUserExists(Request $request)
+    {
+        try {
+            $request->validate([
+                'membership_id' => 'required|string'
+            ]);
+
+            $membershipId = trim($request->membership_id);
+            
+            $user = User::whereRaw("TRIM(m_id) = ?", [$membershipId])->first();
+            
+            if (!$user) {
+                $user = User::where('m_id', 'LIKE', $membershipId . '%')->first();
             }
             
-        } catch (\Throwable $e) {
-            if ($request->expectsJson()) {
-                return $this->error('Unable to submit DRF', 500, [ 'exception' => $e->getMessage() ]);
+            if (!$user) {
+                $user = User::where('m_id', $request->membership_id)->first();
             }
-            return $this->error('Unable to submit DRF', 500, [ 'exception' => $e->getMessage() ]);
+
+            if ($user) {
+                return $this->success('User found', 200, [
+                    'exists' => true,
+                    'user' => $user,
+                ]);
+            }
+
+            // Let's see what we have in the database around that ID
+            $nearbyUsers = User::whereRaw("TRIM(m_id) LIKE ?", ['%' . $membershipId . '%'])
+                ->orWhereRaw("m_id LIKE ?", ['%' . $membershipId . '%'])
+                ->limit(5)
+                ->get(['id', 'm_id', 'name']);
+
+            return $this->success('User not found', 200, [
+                'exists' => false,
+                'message' => 'No user found with this membership ID',
+                'debug' => [
+                    'searched_for' => $membershipId,
+                    'original_input' => $request->membership_id,
+                    'nearby_users' => $nearbyUsers->toArray()
+                ]
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->error('Validation failed', 422, $e->errors());
+        } catch (\Throwable $e) {
+            return $this->error('Unable to check user', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
         }
     }
 }
