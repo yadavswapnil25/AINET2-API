@@ -582,7 +582,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"admin@ainet.com\",\n    \"password\": \"admin123456\"\n}"
+							"raw": "{\n    \"email\": \"admin@ainet.com\",\n    \"password\": \"admin123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/client/admin/login",
