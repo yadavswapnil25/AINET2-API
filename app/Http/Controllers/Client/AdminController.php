@@ -184,6 +184,21 @@ class AdminController extends Controller
                 });
             }
 
+            // Date range filter on created_at
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+            }
+
             // Sorting
             $query->orderBy($sortBy, $sortOrder);
 
@@ -390,6 +405,81 @@ class AdminController extends Controller
     }
 
     /**
+     * Export DRF records as CSV
+     */
+    public function exportDrf(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            $query = Drf::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('institution', 'LIKE', "%{$search}%")
+                      ->orWhere('member', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $filename = 'drf_export_' . now()->format('Ymd_His') . '.csv';
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Cache-Control' => 'no-store, no-cache',
+            ];
+
+            $columns = [
+                'id', 'member', 'pre_title', 'name', 'gender', 'age', 'institution', 'address', 'city', 'pincode',
+                'state', 'country_code', 'phone_no', 'email', 'areas', 'experience', 'conference', 'you_are_register_as', 'created_at'
+            ];
+
+            $callback = function () use ($query, $columns) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, $columns);
+                $query->chunk(1000, function ($rows) use ($handle, $columns) {
+                    foreach ($rows as $row) {
+                        $data = [];
+                        foreach ($columns as $col) {
+                            $data[] = $row->{$col};
+                        }
+                        fputcsv($handle, $data);
+                    }
+                });
+                fclose($handle);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to export DRF records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Get all PPF records with pagination
      */
     public function getPpfList(Request $request)
@@ -411,6 +501,21 @@ class AdminController extends Controller
                       ->orWhere('pr_title', 'LIKE', "%{$search}%")
                       ->orWhere('sub_theme', 'LIKE', "%{$search}%");
                 });
+            }
+
+            // Date range filter on created_at
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
             }
 
             // Sorting
@@ -640,6 +745,88 @@ class AdminController extends Controller
 
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve PPF statistics', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Export PPF records as CSV
+     */
+    public function exportPpf(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            $query = Ppf::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('main_name', 'LIKE', "%{$search}%")
+                      ->orWhere('main_email', 'LIKE', "%{$search}%")
+                      ->orWhere('main_work', 'LIKE', "%{$search}%")
+                      ->orWhere('pr_title', 'LIKE', "%{$search}%")
+                      ->orWhere('sub_theme', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $filename = 'ppf_export_' . now()->format('Ymd_His') . '.csv';
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Cache-Control' => 'no-store, no-cache',
+            ];
+
+            $columns = [
+                'id',
+                'main_title', 'main_name', 'main_work', 'main_country_code', 'main_phone', 'main_email',
+                'co1_title', 'co1_name', 'co1_work', 'co1_country_code', 'co1_phone', 'co1_email',
+                'co2_title', 'co2_name', 'co2_work', 'co2_country_code', 'co2_phone', 'co2_email',
+                'co3_title', 'co3_name', 'co3_work', 'co3_country_code', 'co3_phone', 'co3_email',
+                'sub_theme', 'sub_theme_other', 'pr_nature', 'pr_title', 'pr_abstract',
+                'pr1_bio', 'pr2_bio', 'pr3_bio', 'pr4_bio',
+                'created_at'
+            ];
+
+            $callback = function () use ($query, $columns) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, $columns);
+                $query->chunk(1000, function ($rows) use ($handle, $columns) {
+                    foreach ($rows as $row) {
+                        $data = [];
+                        foreach ($columns as $col) {
+                            $data[] = $row->{$col};
+                        }
+                        fputcsv($handle, $data);
+                    }
+                });
+                fclose($handle);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to export PPF records', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())

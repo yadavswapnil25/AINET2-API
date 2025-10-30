@@ -1250,6 +1250,58 @@
 					"response": []
 				},
 				{
+                    "name": "Export DRF CSV",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "text/csv"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/client/admin/drf/export?start_date=2025-07-01&end_date=2025-07-31&search=",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "client",
+                                "admin",
+                                "drf",
+                                "export"
+                            ],
+                            "query": [
+                                { "key": "start_date", "value": "2025-07-01" },
+                                { "key": "end_date", "value": "2025-07-31" },
+                                { "key": "search", "value": "" },
+                                { "key": "sort_by", "value": "created_at" },
+                                { "key": "sort_order", "value": "desc" }
+                            ]
+                        },
+                        "description": "Export DRF data as CSV with optional filters"
+                    },
+                    "response": []
+                },
+                {
 					"name": "Search DRF Records",
 					"event": [
 						{
@@ -1688,6 +1740,58 @@
 					"response": []
 				},
 				{
+                    "name": "Export PPF CSV",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "pm.test('Status code is 200', function () {",
+                                    "    pm.response.to.have.status(200);",
+                                    "});"
+                                ],
+                                "type": "text/javascript"
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [
+                            {
+                                "key": "Accept",
+                                "value": "text/csv"
+                            },
+                            {
+                                "key": "Authorization",
+                                "value": "Bearer {{admin_token}}"
+                            }
+                        ],
+                        "url": {
+                            "raw": "{{base_url}}/api/v1/client/admin/ppf/export?start_date=2025-07-01&end_date=2025-07-31&search=",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "api",
+                                "v1",
+                                "client",
+                                "admin",
+                                "ppf",
+                                "export"
+                            ],
+                            "query": [
+                                { "key": "start_date", "value": "2025-07-01" },
+                                { "key": "end_date", "value": "2025-07-31" },
+                                { "key": "search", "value": "" },
+                                { "key": "sort_by", "value": "created_at" },
+                                { "key": "sort_order", "value": "desc" }
+                            ]
+                        },
+                        "description": "Export PPF data as CSV with optional filters"
+                    },
+                    "response": []
+                },
+                {
 					"name": "Search PPF Records",
 					"event": [
 						{

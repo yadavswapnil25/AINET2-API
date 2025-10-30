@@ -31,6 +31,7 @@ Route::prefix('admin')->group(function () {
         
         // DRF CRUD operations
         Route::get('/drf', [AdminController::class, 'getDrfList']);
+        Route::get('/drf/export', [AdminController::class, 'exportDrf']);
         Route::get('/drf/stats', [AdminController::class, 'getDrfStats']);
         Route::get('/drf/{id}', [AdminController::class, 'getDrf']);
         Route::put('/drf/{id}', [AdminController::class, 'updateDrf']);
@@ -39,6 +40,7 @@ Route::prefix('admin')->group(function () {
         
         // PPF CRUD operations
         Route::get('/ppf', [AdminController::class, 'getPpfList']);
+        Route::get('/ppf/export', [AdminController::class, 'exportPpf']);
         Route::get('/ppf/stats', [AdminController::class, 'getPpfStats']);
         Route::get('/ppf/{id}', [AdminController::class, 'getPpf']);
         Route::put('/ppf/{id}', [AdminController::class, 'updatePpf']);
