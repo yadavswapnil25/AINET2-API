@@ -3455,9 +3455,178 @@
 						"description": "Export membership data as CSV with optional filters"
 					},
 					"response": []
+				},
+				{
+					"name": "Delete Membership (Soft Delete)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/admin/memberships/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"admin",
+								"memberships",
+								"1"
+							]
+						},
+						"description": "Soft delete a membership record (moves to trash)"
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Membership",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/admin/memberships/1/restore",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"admin",
+								"memberships",
+								"1",
+								"restore"
+							]
+						},
+						"description": "Restore a soft deleted membership record from trash"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Trashed Memberships",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{admin_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/admin/memberships/trashed?per_page=10&search=&sort_by=deleted_at&sort_order=desc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"admin",
+								"memberships",
+								"trashed"
+							],
+							"query": [
+								{
+									"key": "per_page",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": ""
+								},
+								{
+									"key": "sort_by",
+									"value": "deleted_at"
+								},
+								{
+									"key": "sort_order",
+									"value": "desc"
+								}
+							]
+						},
+						"description": "Get paginated list of soft deleted (trashed) membership records"
+					},
+					"response": []
 				}
 			],
-			"description": "Admin membership management with search, filters, and export"
+			"description": "Admin membership management with search, filters, export, and soft delete"
 		},
 		{
 			"name": "Test Endpoints",

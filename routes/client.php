@@ -72,6 +72,9 @@ Route::prefix('admin')->group(function () {
         // Membership CRUD operations
         Route::get('/memberships', [AdminController::class, 'getMembershipList']);
         Route::get('/memberships/export', [AdminController::class, 'exportMembership']);
+        Route::get('/memberships/trashed', [AdminController::class, 'getTrashedMemberships']);
+        Route::delete('/memberships/{id}', [AdminController::class, 'deleteMembership']);
+        Route::post('/memberships/{id}/restore', [AdminController::class, 'restoreMembership']);
     });
 });
 

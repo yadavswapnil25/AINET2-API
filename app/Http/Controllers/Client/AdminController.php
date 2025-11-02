@@ -1571,6 +1571,11 @@ class AdminController extends Controller
 
             $query = User::query();
 
+            // Only get users with membership data (exclude admin users)
+            $query->where(function($q) {
+                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+            });
+
             // Search functionality
             if ($search) {
                 $query->where(function ($q) use ($search) {
@@ -1579,8 +1584,7 @@ class AdminController extends Controller
                       ->orWhere('mobile', 'LIKE', "%{$search}%")
                       ->orWhere('m_id', 'LIKE', "%{$search}%")
                       ->orWhere('first_name', 'LIKE', "%{$search}%")
-                      ->orWhere('last_name', 'LIKE', "%{$search}%")
-                      ->orWhere('name_institution', 'LIKE', "%{$search}%");
+                      ->orWhere('last_name', 'LIKE', "%{$search}%");
                 });
             }
 
@@ -1610,11 +1614,6 @@ class AdminController extends Controller
             } elseif ($endDate) {
                 $query->where('created_at', '<=', $endDate . ' 23:59:59');
             }
-
-            // Only get users with membership data (exclude admin users)
-            $query->where(function($q) {
-                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
-            });
 
             // Sorting
             $query->orderBy($sortBy, $sortOrder);
@@ -1659,6 +1658,11 @@ class AdminController extends Controller
 
             $query = User::query();
 
+            // Only get users with membership data (exclude admin users)
+            $query->where(function($q) {
+                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+            });
+
             if ($search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('name', 'LIKE', "%{$search}%")
@@ -1693,11 +1697,6 @@ class AdminController extends Controller
             } elseif ($endDate) {
                 $query->where('created_at', '<=', $endDate . ' 23:59:59');
             }
-
-            // Only get users with membership data (exclude admin users)
-            $query->where(function($q) {
-                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
-            });
 
             $query->orderBy($sortBy, $sortOrder);
 
@@ -1742,6 +1741,134 @@ class AdminController extends Controller
 
         } catch (\Throwable $e) {
             return $this->error('Failed to export membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Soft delete membership record (User)
+     */
+    public function deleteMembership(Request $request, $id)
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->error('Membership record not found', 404, [
+                    'message' => 'No membership record found with the given ID'
+                ]);
+            }
+
+            // Prevent deleting admin users
+            if ($user->role_id === 1) {
+                return $this->error('Cannot delete admin user', 400, [
+                    'message' => 'Admin users cannot be deleted through membership management'
+                ]);
+            }
+
+            // Prevent deleting the current user
+            if ($user->id === $request->user()->id) {
+                return $this->error('Cannot delete your own account', 400, [
+                    'message' => 'You cannot delete your own user account'
+                ]);
+            }
+
+            $user->delete(); // Soft delete
+
+            return $this->success('Membership record deleted successfully', 200, [
+                'message' => 'Membership record has been moved to trash',
+                'id' => $id
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete membership record', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Restore soft deleted membership record
+     */
+    public function restoreMembership(Request $request, $id)
+    {
+        try {
+            $user = User::onlyTrashed()->find($id);
+
+            if (!$user) {
+                return $this->error('Deleted membership record not found', 404, [
+                    'message' => 'No deleted membership record found with the given ID'
+                ]);
+            }
+
+            $user->restore();
+
+            return $this->success('Membership record restored successfully', 200, [
+                'message' => 'Membership record has been restored',
+                'membership' => $user->fresh()
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to restore membership record', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get trashed (deleted) membership records
+     */
+    public function getTrashedMemberships(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'deleted_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+
+            $query = User::onlyTrashed();
+
+            // Search functionality
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('mobile', 'LIKE', "%{$search}%")
+                      ->orWhere('m_id', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // Only get users with membership data (exclude admin users)
+            $query->where(function($q) {
+                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+            });
+
+            // Sorting
+            $query->orderBy($sortBy, $sortOrder);
+
+            $trashed = $query->paginate($perPage);
+
+            return $this->success('Trashed membership records retrieved successfully', 200, [
+                'memberships' => $trashed->items(),
+                'pagination' => [
+                    'current_page' => $trashed->currentPage(),
+                    'last_page' => $trashed->lastPage(),
+                    'per_page' => $trashed->perPage(),
+                    'total' => $trashed->total(),
+                    'from' => $trashed->firstItem(),
+                    'to' => $trashed->lastItem(),
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve trashed membership records', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())
