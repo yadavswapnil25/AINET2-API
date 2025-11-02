@@ -68,6 +68,10 @@ Route::prefix('admin')->group(function () {
         Route::put('/blogs/{id}', [AdminController::class, 'updateBlog']);
         Route::delete('/blogs/{id}', [AdminController::class, 'deleteBlog']);
         Route::delete('/blogs/bulk', [AdminController::class, 'bulkDeleteBlog']);
+        
+        // Membership CRUD operations
+        Route::get('/memberships', [AdminController::class, 'getMembershipList']);
+        Route::get('/memberships/export', [AdminController::class, 'exportMembership']);
     });
 });
 

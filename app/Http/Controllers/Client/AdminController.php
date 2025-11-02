@@ -1552,4 +1552,200 @@ class AdminController extends Controller
             ]);
         }
     }
+
+    /**
+     * Get all membership records with pagination, search, and filters
+     */
+    public function getMembershipList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $membershipType = $request->get('membership_type');
+            $membershipPlan = $request->get('membership_plan');
+            $state = $request->get('state');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            $query = User::query();
+
+            // Search functionality
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('mobile', 'LIKE', "%{$search}%")
+                      ->orWhere('m_id', 'LIKE', "%{$search}%")
+                      ->orWhere('first_name', 'LIKE', "%{$search}%")
+                      ->orWhere('last_name', 'LIKE', "%{$search}%")
+                      ->orWhere('name_institution', 'LIKE', "%{$search}%");
+                });
+            }
+
+            // Filter by membership type
+            if ($membershipType) {
+                $query->where('membership_type', $membershipType);
+            }
+
+            // Filter by membership plan
+            if ($membershipPlan) {
+                $query->where('membership_plan', $membershipPlan);
+            }
+
+            // Filter by state
+            if ($state) {
+                $query->where('state', $state);
+            }
+
+            // Date range filter on created_at
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+            }
+
+            // Only get users with membership data (exclude admin users)
+            $query->where(function($q) {
+                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+            });
+
+            // Sorting
+            $query->orderBy($sortBy, $sortOrder);
+
+            $memberships = $query->paginate($perPage);
+
+            return $this->success('Membership records retrieved successfully', 200, [
+                'memberships' => $memberships->items(),
+                'pagination' => [
+                    'current_page' => $memberships->currentPage(),
+                    'last_page' => $memberships->lastPage(),
+                    'per_page' => $memberships->perPage(),
+                    'total' => $memberships->total(),
+                    'from' => $memberships->firstItem(),
+                    'to' => $memberships->lastItem(),
+                ]
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Export membership records as CSV
+     */
+    public function exportMembership(Request $request)
+    {
+        try {
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+            $membershipType = $request->get('membership_type');
+            $membershipPlan = $request->get('membership_plan');
+            $state = $request->get('state');
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
+
+            $query = User::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('mobile', 'LIKE', "%{$search}%")
+                      ->orWhere('m_id', 'LIKE', "%{$search}%")
+                      ->orWhere('first_name', 'LIKE', "%{$search}%")
+                      ->orWhere('last_name', 'LIKE', "%{$search}%")
+                      ->orWhere('name_institution', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($membershipType) {
+                $query->where('membership_type', $membershipType);
+            }
+
+            if ($membershipPlan) {
+                $query->where('membership_plan', $membershipPlan);
+            }
+
+            if ($state) {
+                $query->where('state', $state);
+            }
+
+            if ($startDate && $endDate) {
+                $query->whereBetween('created_at', [
+                    $startDate . ' 00:00:00',
+                    $endDate . ' 23:59:59'
+                ]);
+            } elseif ($startDate) {
+                $query->where('created_at', '>=', $startDate . ' 00:00:00');
+            } elseif ($endDate) {
+                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+            }
+
+            // Only get users with membership data (exclude admin users)
+            $query->where(function($q) {
+                $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+            });
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $filename = 'membership_export_' . now()->format('Ymd_His') . '.csv';
+
+            $headers = [
+                'Content-Type' => 'text/csv',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+                'Cache-Control' => 'no-store, no-cache',
+            ];
+
+            $columns = [
+                'id', 'ref', 'm_id', 'first_name', 'last_name', 'name', 'email', 'mobile', 'whatsapp_no',
+                'gender', 'dob', 'title', 'address', 'state', 'district', 'pin',
+                'qualification', 'area_of_work', 'teaching_exp',
+                'membership_type', 'membership_plan',
+                'has_member_any', 'name_association', 'expectation', 'has_newsletter',
+                'name_institution', 'address_institution', 'type_institution', 'other_institution', 'contact_person',
+                'created_at', 'updated_at'
+            ];
+
+            $callback = function () use ($query, $columns) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, $columns);
+                $query->chunk(1000, function ($rows) use ($handle, $columns) {
+                    foreach ($rows as $row) {
+                        $data = [];
+                        foreach ($columns as $col) {
+                            if ($col === 'qualification' || $col === 'area_of_work') {
+                                $data[] = is_string($row->{$col}) ? $row->{$col} : json_encode($row->{$col});
+                            } else {
+                                $data[] = $row->{$col};
+                            }
+                        }
+                        fputcsv($handle, $data);
+                    }
+                });
+                fclose($handle);
+            };
+
+            return response()->stream($callback, 200, $headers);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to export membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
 }
