@@ -8,6 +8,12 @@ use App\Models\Drf;
 use App\Models\Ppf;
 use App\Models\User;
 use App\Models\Blog;
+use App\Models\Banner;
+use App\Models\Event;
+use App\Models\Partner;
+use App\Models\Gallery;
+use App\Models\Newsletter;
+use App\Models\News;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -1481,6 +1487,222 @@ class AdminController extends Controller
     }
 
     /**
+     * Banner Management
+     */
+    public function getBannerList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+
+            $query = Banner::query();
+
+            if ($search) {
+                $query->where('title', 'LIKE', "%{$search}%");
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $banners = $query->paginate($perPage);
+
+            // Map with image_url for convenience
+            $items = collect($banners->items())->map(function ($b) {
+                $b->image_url = $b->image_path ? url($b->image_path) : null;
+                return $b;
+            });
+
+            return $this->success('Banners retrieved successfully', 200, [
+                'banners' => $items,
+                'pagination' => [
+                    'current_page' => $banners->currentPage(),
+                    'last_page' => $banners->lastPage(),
+                    'per_page' => $banners->perPage(),
+                    'total' => $banners->total(),
+                    'from' => $banners->firstItem(),
+                    'to' => $banners->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve banners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getBanner(Request $request, $id)
+    {
+        try {
+            $banner = Banner::find($id);
+            if (!$banner) {
+                return $this->error('Banner not found', 404, [
+                    'message' => 'No banner found with the given ID'
+                ]);
+            }
+            $banner->image_url = $banner->image_path ? url($banner->image_path) : null;
+            return $this->success('Banner retrieved successfully', 200, [
+                'banner' => $banner
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve banner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createBanner(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'image' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+                'starts_at' => 'nullable|date',
+                'ends_at' => 'nullable|date|after_or_equal:starts_at',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $stored = $request->file('image')->store('banners', 'public');
+                $imagePath = 'storage/' . $stored; // public URL path
+            }
+
+            $banner = Banner::create([
+                'title' => $request->title,
+                'image_path' => $imagePath,
+                'link_url' => $request->link_url,
+                'is_active' => $request->boolean('is_active', true),
+                'sort_order' => $request->input('sort_order', 0),
+                'starts_at' => $request->starts_at,
+                'ends_at' => $request->ends_at,
+            ]);
+
+            $banner->image_url = $banner->image_path ? url($banner->image_path) : null;
+
+            return $this->success('Banner created successfully', 201, [
+                'banner' => $banner
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create banner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updateBanner(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'sometimes|string|max:255',
+                'image' => 'sometimes|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+                'starts_at' => 'nullable|date',
+                'ends_at' => 'nullable|date|after_or_equal:starts_at',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $banner = Banner::find($id);
+            if (!$banner) {
+                return $this->error('Banner not found', 404, [
+                    'message' => 'No banner found with the given ID'
+                ]);
+            }
+
+            $updateData = $request->only(['title', 'link_url', 'is_active', 'sort_order', 'starts_at', 'ends_at']);
+
+            if ($request->hasFile('image')) {
+                $stored = $request->file('image')->store('banners', 'public');
+                $updateData['image_path'] = 'storage/' . $stored;
+            }
+
+            $banner->update($updateData);
+            $banner->image_url = $banner->image_path ? url($banner->image_path) : null;
+
+            return $this->success('Banner updated successfully', 200, [
+                'banner' => $banner->fresh()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update banner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteBanner(Request $request, $id)
+    {
+        try {
+            $banner = Banner::find($id);
+            if (!$banner) {
+                return $this->error('Banner not found', 404, [
+                    'message' => 'No banner found with the given ID'
+                ]);
+            }
+            $banner->delete();
+            return $this->success('Banner deleted successfully', 200, [
+                'message' => 'Banner has been permanently deleted'
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete banner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteBanner(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array|min:1',
+                'ids.*' => 'integer|exists:banners,id'
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $deletedCount = Banner::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Banners deleted successfully', 200, [
+                'deleted_count' => $deletedCount,
+                'message' => "{$deletedCount} banners have been permanently deleted"
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete banners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Get users with role_id = 1 (Admin users)
      */
     public function getAdminUsers(Request $request)
@@ -1869,6 +2091,1422 @@ class AdminController extends Controller
 
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve trashed membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active banners for website (public endpoint)
+     */
+    public function getWebsiteBanners(Request $request)
+    {
+        try {
+            $now = now();
+
+            $query = Banner::where('is_active', true)
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('starts_at')
+                      ->orWhere('starts_at', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>=', $now);
+                });
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Sort by sort_order ascending, then by created_at descending
+            $banners = $query->orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Map with image_url for convenience
+            $items = $banners->map(function ($b) {
+                return [
+                    'id' => $b->id,
+                    'title' => $b->title,
+                    'image_url' => $b->image_path ? url($b->image_path) : null,
+                    'link_url' => $b->link_url,
+                    'sort_order' => $b->sort_order,
+                    'starts_at' => $b->starts_at,
+                    'ends_at' => $b->ends_at,
+                ];
+            });
+
+            return $this->success('Banners retrieved successfully', 200, [
+                'banners' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve banners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Event Management
+     */
+    public function getEventList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+            $eventType = $request->get('event_type');
+
+            $query = Event::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'LIKE', "%{$search}%")
+                      ->orWhere('location', 'LIKE', "%{$search}%")
+                      ->orWhere('description', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            if ($eventType) {
+                $query->where('event_type', $eventType);
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $events = $query->paginate($perPage);
+
+            return $this->success('Events retrieved successfully', 200, [
+                'events' => $events->items(),
+                'pagination' => [
+                    'current_page' => $events->currentPage(),
+                    'last_page' => $events->lastPage(),
+                    'per_page' => $events->perPage(),
+                    'total' => $events->total(),
+                    'from' => $events->firstItem(),
+                    'to' => $events->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve events', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getEvent(Request $request, $id)
+    {
+        try {
+            $event = Event::find($id);
+            if (!$event) {
+                return $this->error('Event not found', 404, [
+                    'message' => 'No event found with the given ID'
+                ]);
+            }
+            return $this->success('Event retrieved successfully', 200, [
+                'event' => $event
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve event', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createEvent(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'location' => 'required|string|max:255',
+                'event_date' => 'nullable|date',
+                'event_date_end' => 'nullable|date|after_or_equal:event_date',
+                'description' => 'nullable|string',
+                'link_url' => 'nullable|url',
+                'event_type' => 'nullable|string|max:100',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+                'starts_at' => 'nullable|date',
+                'ends_at' => 'nullable|date|after_or_equal:starts_at',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $event = Event::create($request->only([
+                'title', 'location', 'event_date', 'event_date_end', 'description',
+                'link_url', 'event_type', 'is_active', 'sort_order', 'starts_at', 'ends_at'
+            ]));
+
+            return $this->success('Event created successfully', 201, [
+                'event' => $event
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create event', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updateEvent(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'sometimes|string|max:255',
+                'location' => 'sometimes|string|max:255',
+                'event_date' => 'nullable|date',
+                'event_date_end' => 'nullable|date|after_or_equal:event_date',
+                'description' => 'nullable|string',
+                'link_url' => 'nullable|url',
+                'event_type' => 'nullable|string|max:100',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+                'starts_at' => 'nullable|date',
+                'ends_at' => 'nullable|date|after_or_equal:starts_at',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $event = Event::find($id);
+            if (!$event) {
+                return $this->error('Event not found', 404, [
+                    'message' => 'No event found with the given ID'
+                ]);
+            }
+
+            $event->update($request->only([
+                'title', 'location', 'event_date', 'event_date_end', 'description',
+                'link_url', 'event_type', 'is_active', 'sort_order', 'starts_at', 'ends_at'
+            ]));
+
+            return $this->success('Event updated successfully', 200, [
+                'event' => $event->fresh()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update event', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteEvent(Request $request, $id)
+    {
+        try {
+            $event = Event::find($id);
+            if (!$event) {
+                return $this->error('Event not found', 404, [
+                    'message' => 'No event found with the given ID'
+                ]);
+            }
+            $event->delete();
+            return $this->success('Event deleted successfully', 200, [
+                'message' => 'Event has been permanently deleted'
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete event', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteEvent(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array|min:1',
+                'ids.*' => 'integer|exists:events,id'
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $deletedCount = Event::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Events deleted successfully', 200, [
+                'deleted_count' => $deletedCount,
+                'message' => "{$deletedCount} events have been permanently deleted"
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete events', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get upcoming conference for website (public endpoint)
+     * Returns the first active conference event
+     */
+    public function getWebsiteConference(Request $request)
+    {
+        try {
+            $now = now();
+
+            $query = Event::where('is_active', true)
+                ->where('event_type', 'conference')
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('starts_at')
+                      ->orWhere('starts_at', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>=', $now);
+                });
+
+            // Get the first conference (sorted by sort_order)
+            $conference = $query->orderBy('sort_order', 'asc')
+                ->orderBy('event_date', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$conference) {
+                return $this->success('No upcoming conference', 200, [
+                    'conference' => null
+                ]);
+            }
+
+            // Format event date for display
+            $dateDisplay = '';
+            if ($conference->event_date) {
+                if ($conference->event_date_end && $conference->event_date_end != $conference->event_date) {
+                    // Date range
+                    $dateDisplay = $conference->event_date->format('d F Y') . ' - ' . $conference->event_date_end->format('d F Y');
+                } else {
+                    // Single date
+                    $dateDisplay = $conference->event_date->format('d F Y');
+                }
+            } else {
+                $dateDisplay = 'TBA';
+            }
+
+            $conferenceData = [
+                'id' => $conference->id,
+                'title' => $conference->title,
+                'location' => $conference->location,
+                'event_date' => $conference->event_date ? $conference->event_date->format('Y-m-d') : null,
+                'event_date_end' => $conference->event_date_end ? $conference->event_date_end->format('Y-m-d') : null,
+                'date_display' => $dateDisplay,
+                'description' => $conference->description,
+                'link_url' => $conference->link_url,
+                'event_type' => $conference->event_type,
+                'sort_order' => $conference->sort_order,
+            ];
+
+            return $this->success('Conference retrieved successfully', 200, [
+                'conference' => $conferenceData
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve conference', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active events for website (public endpoint)
+     * Excludes conference events by default (can be included with exclude_conference=false)
+     */
+    public function getWebsiteEvents(Request $request)
+    {
+        try {
+            $now = now();
+
+            $query = Event::where('is_active', true)
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('starts_at')
+                      ->orWhere('starts_at', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>=', $now);
+                });
+
+            // Exclude conference events by default (for home page events list)
+            $excludeConference = $request->get('exclude_conference', 'true');
+            if ($excludeConference === 'true' || $excludeConference === true) {
+                $query->where(function ($q) {
+                    $q->where('event_type', '!=', 'conference')
+                      ->orWhereNull('event_type');
+                });
+            }
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Optional event type filter
+            $eventType = $request->get('event_type');
+            if ($eventType) {
+                $query->where('event_type', $eventType);
+            }
+
+            // Sort by sort_order ascending, then by event_date ascending
+            $events = $query->orderBy('sort_order', 'asc')
+                ->orderBy('event_date', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Format event date for display
+            $items = $events->map(function ($e) {
+                $dateDisplay = '';
+                if ($e->event_date) {
+                    if ($e->event_date_end && $e->event_date_end != $e->event_date) {
+                        // Date range
+                        $dateDisplay = $e->event_date->format('d F Y') . ' - ' . $e->event_date_end->format('d F Y');
+                    } else {
+                        // Single date
+                        $dateDisplay = $e->event_date->format('d F Y');
+                    }
+                } else {
+                    $dateDisplay = 'TBA';
+                }
+
+                return [
+                    'id' => $e->id,
+                    'title' => $e->title,
+                    'location' => $e->location,
+                    'event_date' => $e->event_date ? $e->event_date->format('Y-m-d') : null,
+                    'event_date_end' => $e->event_date_end ? $e->event_date_end->format('Y-m-d') : null,
+                    'date_display' => $dateDisplay,
+                    'description' => $e->description,
+                    'link_url' => $e->link_url,
+                    'event_type' => $e->event_type,
+                    'sort_order' => $e->sort_order,
+                ];
+            });
+
+            return $this->success('Events retrieved successfully', 200, [
+                'events' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve events', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all partners with pagination
+     */
+    public function getPartnerList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+
+            $query = Partner::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('subtitle', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $partners = $query->paginate($perPage);
+
+            // Map with logo_url for convenience
+            $items = collect($partners->items())->map(function ($p) {
+                $p->logo_url = $p->logo_path ? url($p->logo_path) : null;
+                return $p;
+            });
+
+            return $this->success('Partners retrieved successfully', 200, [
+                'partners' => $items,
+                'pagination' => [
+                    'current_page' => $partners->currentPage(),
+                    'last_page' => $partners->lastPage(),
+                    'per_page' => $partners->perPage(),
+                    'total' => $partners->total(),
+                    'from' => $partners->firstItem(),
+                    'to' => $partners->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve partners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getPartner(Request $request, $id)
+    {
+        try {
+            $partner = Partner::find($id);
+            if (!$partner) {
+                return $this->error('Partner not found', 404, [
+                    'message' => 'No partner found with the given ID'
+                ]);
+            }
+            $partner->logo_url = $partner->logo_path ? url($partner->logo_path) : null;
+            return $this->success('Partner retrieved successfully', 200, [
+                'partner' => $partner
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve partner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createPartner(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'logo' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'subtitle' => 'nullable|string|max:255',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $logoPath = null;
+            if ($request->hasFile('logo')) {
+                $stored = $request->file('logo')->store('partners', 'public');
+                $logoPath = 'storage/' . $stored; // public URL path
+            }
+
+            $partner = Partner::create([
+                'name' => $request->name,
+                'logo_path' => $logoPath,
+                'subtitle' => $request->subtitle,
+                'link_url' => $request->link_url,
+                'is_active' => $request->boolean('is_active', true),
+                'sort_order' => $request->input('sort_order', 0),
+            ]);
+
+            $partner->logo_url = $partner->logo_path ? url($partner->logo_path) : null;
+
+            return $this->success('Partner created successfully', 201, [
+                'partner' => $partner
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create partner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updatePartner(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|string|max:255',
+                'logo' => 'sometimes|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'subtitle' => 'nullable|string|max:255',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $partner = Partner::find($id);
+            if (!$partner) {
+                return $this->error('Partner not found', 404, [
+                    'message' => 'No partner found with the given ID'
+                ]);
+            }
+
+            $updateData = $request->only(['name', 'subtitle', 'link_url', 'is_active', 'sort_order']);
+
+            if ($request->hasFile('logo')) {
+                // Delete old logo if exists
+                if ($partner->logo_path && file_exists(public_path($partner->logo_path))) {
+                    @unlink(public_path($partner->logo_path));
+                }
+                $stored = $request->file('logo')->store('partners', 'public');
+                $updateData['logo_path'] = 'storage/' . $stored;
+            }
+
+            $partner->update($updateData);
+            $partner->logo_url = $partner->logo_path ? url($partner->logo_path) : null;
+
+            return $this->success('Partner updated successfully', 200, [
+                'partner' => $partner
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update partner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deletePartner(Request $request, $id)
+    {
+        try {
+            $partner = Partner::find($id);
+            if (!$partner) {
+                return $this->error('Partner not found', 404, [
+                    'message' => 'No partner found with the given ID'
+                ]);
+            }
+
+            // Delete logo file if exists
+            if ($partner->logo_path && file_exists(public_path($partner->logo_path))) {
+                @unlink(public_path($partner->logo_path));
+            }
+
+            $partner->delete();
+
+            return $this->success('Partner deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete partner', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeletePartner(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'required|integer|exists:partners,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $partners = Partner::whereIn('id', $request->ids)->get();
+
+            foreach ($partners as $partner) {
+                // Delete logo file if exists
+                if ($partner->logo_path && file_exists(public_path($partner->logo_path))) {
+                    @unlink(public_path($partner->logo_path));
+                }
+            }
+
+            Partner::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Partners deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete partners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active partners for website (public endpoint)
+     */
+    public function getWebsitePartners(Request $request)
+    {
+        try {
+            $query = Partner::where('is_active', true);
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Sort by sort_order ascending
+            $partners = $query->orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $items = $partners->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'logo_url' => $p->logo_path ? url($p->logo_path) : null,
+                    'subtitle' => $p->subtitle,
+                    'link_url' => $p->link_url,
+                    'sort_order' => $p->sort_order,
+                ];
+            });
+
+            return $this->success('Partners retrieved successfully', 200, [
+                'partners' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve partners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all galleries with pagination
+     */
+    public function getGalleryList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+
+            $query = Gallery::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $galleries = $query->paginate($perPage);
+
+            // Map with image_url for convenience
+            $items = collect($galleries->items())->map(function ($g) {
+                $g->image_url = $g->image_path ? url($g->image_path) : null;
+                return $g;
+            });
+
+            return $this->success('Galleries retrieved successfully', 200, [
+                'galleries' => $items,
+                'pagination' => [
+                    'current_page' => $galleries->currentPage(),
+                    'last_page' => $galleries->lastPage(),
+                    'per_page' => $galleries->perPage(),
+                    'total' => $galleries->total(),
+                    'from' => $galleries->firstItem(),
+                    'to' => $galleries->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve galleries', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getGallery(Request $request, $id)
+    {
+        try {
+            $gallery = Gallery::find($id);
+            if (!$gallery) {
+                return $this->error('Gallery not found', 404, [
+                    'message' => 'No gallery found with the given ID'
+                ]);
+            }
+            $gallery->image_url = $gallery->image_path ? url($gallery->image_path) : null;
+            return $this->success('Gallery retrieved successfully', 200, [
+                'gallery' => $gallery
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve gallery', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createGallery(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'required|string|max:255',
+                'image' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $stored = $request->file('image')->store('galleries', 'public');
+                $imagePath = 'storage/' . $stored; // public URL path
+            }
+
+            $gallery = Gallery::create([
+                'title' => $request->title,
+                'image_path' => $imagePath,
+                'is_active' => $request->boolean('is_active', true),
+                'sort_order' => $request->input('sort_order', 0),
+            ]);
+
+            $gallery->image_url = $gallery->image_path ? url($gallery->image_path) : null;
+
+            return $this->success('Gallery created successfully', 201, [
+                'gallery' => $gallery
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create gallery', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updateGallery(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'title' => 'sometimes|string|max:255',
+                'image' => 'sometimes|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $gallery = Gallery::find($id);
+            if (!$gallery) {
+                return $this->error('Gallery not found', 404, [
+                    'message' => 'No gallery found with the given ID'
+                ]);
+            }
+
+            $updateData = $request->only(['title', 'is_active', 'sort_order']);
+
+            if ($request->hasFile('image')) {
+                // Delete old image if exists
+                if ($gallery->image_path && file_exists(public_path($gallery->image_path))) {
+                    @unlink(public_path($gallery->image_path));
+                }
+                $stored = $request->file('image')->store('galleries', 'public');
+                $updateData['image_path'] = 'storage/' . $stored;
+            }
+
+            $gallery->update($updateData);
+            $gallery->image_url = $gallery->image_path ? url($gallery->image_path) : null;
+
+            return $this->success('Gallery updated successfully', 200, [
+                'gallery' => $gallery
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update gallery', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteGallery(Request $request, $id)
+    {
+        try {
+            $gallery = Gallery::find($id);
+            if (!$gallery) {
+                return $this->error('Gallery not found', 404, [
+                    'message' => 'No gallery found with the given ID'
+                ]);
+            }
+
+            // Delete image file if exists
+            if ($gallery->image_path && file_exists(public_path($gallery->image_path))) {
+                @unlink(public_path($gallery->image_path));
+            }
+
+            $gallery->delete();
+
+            return $this->success('Gallery deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete gallery', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteGallery(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'required|integer|exists:galleries,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $galleries = Gallery::whereIn('id', $request->ids)->get();
+
+            foreach ($galleries as $gallery) {
+                // Delete image file if exists
+                if ($gallery->image_path && file_exists(public_path($gallery->image_path))) {
+                    @unlink(public_path($gallery->image_path));
+                }
+            }
+
+            Gallery::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Galleries deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete galleries', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active galleries for website (public endpoint)
+     */
+    public function getWebsiteGalleries(Request $request)
+    {
+        try {
+            $query = Gallery::where('is_active', true);
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Sort by sort_order ascending
+            $galleries = $query->orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $items = $galleries->map(function ($g) {
+                return [
+                    'id' => $g->id,
+                    'title' => $g->title,
+                    'image_url' => $g->image_path ? url($g->image_path) : null,
+                    'sort_order' => $g->sort_order,
+                ];
+            });
+
+            return $this->success('Galleries retrieved successfully', 200, [
+                'galleries' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve galleries', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Subscribe to newsletter (public endpoint)
+     */
+    public function subscribeNewsletter(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'whatsapp_no' => 'nullable|string|max:20',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            // Check if email already exists
+            $existing = Newsletter::where('email', $request->email)->first();
+            if ($existing) {
+                return $this->error('Email already subscribed', 409, [
+                    'message' => 'This email is already subscribed to our newsletter'
+                ]);
+            }
+
+            $newsletter = Newsletter::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'whatsapp_no' => $request->whatsapp_no,
+            ]);
+
+            return $this->success('Successfully subscribed to newsletter', 201, [
+                'newsletter' => $newsletter
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to subscribe', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all newsletter subscriptions with pagination (admin)
+     */
+    public function getNewsletterList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+
+            $query = Newsletter::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('whatsapp_no', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $newsletters = $query->paginate($perPage);
+
+            return $this->success('Newsletters retrieved successfully', 200, [
+                'newsletters' => $newsletters->items(),
+                'pagination' => [
+                    'current_page' => $newsletters->currentPage(),
+                    'last_page' => $newsletters->lastPage(),
+                    'per_page' => $newsletters->perPage(),
+                    'total' => $newsletters->total(),
+                    'from' => $newsletters->firstItem(),
+                    'to' => $newsletters->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve newsletters', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getNewsletterSubscription(Request $request, $id)
+    {
+        try {
+            $newsletter = Newsletter::find($id);
+            if (!$newsletter) {
+                return $this->error('Newsletter subscription not found', 404, [
+                    'message' => 'No newsletter subscription found with the given ID'
+                ]);
+            }
+            return $this->success('Newsletter retrieved successfully', 200, [
+                'newsletter' => $newsletter
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve newsletter', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteNewsletter(Request $request, $id)
+    {
+        try {
+            $newsletter = Newsletter::find($id);
+            if (!$newsletter) {
+                return $this->error('Newsletter subscription not found', 404, [
+                    'message' => 'No newsletter subscription found with the given ID'
+                ]);
+            }
+
+            $newsletter->delete();
+
+            return $this->success('Newsletter subscription deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete newsletter', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteNewsletter(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'required|integer|exists:newsletters,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            Newsletter::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Newsletter subscriptions deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete newsletters', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all news with pagination (admin)
+     */
+    public function getNewsList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+
+            $query = News::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('title', 'LIKE', "%{$search}%")
+                      ->orWhere('publisher_name', 'LIKE', "%{$search}%")
+                      ->orWhere('conference_name', 'LIKE', "%{$search}%")
+                      ->orWhere('summary', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $news = $query->paginate($perPage);
+
+            // Map with publisher_logo_url for convenience
+            $items = collect($news->items())->map(function ($n) {
+                $n->publisher_logo_url = $n->publisher_logo_path ? url($n->publisher_logo_path) : null;
+                return $n;
+            });
+
+            return $this->success('News retrieved successfully', 200, [
+                'news' => $items,
+                'pagination' => [
+                    'current_page' => $news->currentPage(),
+                    'last_page' => $news->lastPage(),
+                    'per_page' => $news->perPage(),
+                    'total' => $news->total(),
+                    'from' => $news->firstItem(),
+                    'to' => $news->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getNews(Request $request, $id)
+    {
+        try {
+            $news = News::find($id);
+            if (!$news) {
+                return $this->error('News not found', 404, [
+                    'message' => 'No news found with the given ID'
+                ]);
+            }
+            $news->publisher_logo_url = $news->publisher_logo_path ? url($news->publisher_logo_path) : null;
+            return $this->success('News retrieved successfully', 200, [
+                'news' => $news
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createNews(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'publisher_name' => 'required|string|max:255',
+                'title' => 'required|string|max:255',
+                'summary' => 'required|string',
+                'location' => 'nullable|string|max:255',
+                'publisher_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'conference_name' => 'nullable|string|max:255',
+                'has_video' => 'nullable|boolean',
+                'view_count' => 'nullable|integer|min:0',
+                'link_url' => 'nullable|url',
+                'published_date' => 'nullable|date',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $publisherLogoPath = null;
+            if ($request->hasFile('publisher_logo')) {
+                $stored = $request->file('publisher_logo')->store('news', 'public');
+                $publisherLogoPath = 'storage/' . $stored;
+            }
+
+            $news = News::create([
+                'location' => $request->location,
+                'publisher_name' => $request->publisher_name,
+                'publisher_logo_path' => $publisherLogoPath,
+                'conference_name' => $request->conference_name,
+                'title' => $request->title,
+                'summary' => $request->summary,
+                'has_video' => $request->boolean('has_video', false),
+                'view_count' => $request->input('view_count', 0),
+                'link_url' => $request->link_url,
+                'published_date' => $request->published_date,
+                'is_active' => $request->boolean('is_active', true),
+                'sort_order' => $request->input('sort_order', 0),
+            ]);
+
+            $news->publisher_logo_url = $news->publisher_logo_path ? url($news->publisher_logo_path) : null;
+
+            return $this->success('News created successfully', 201, [
+                'news' => $news
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updateNews(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'publisher_name' => 'sometimes|string|max:255',
+                'title' => 'sometimes|string|max:255',
+                'summary' => 'sometimes|string',
+                'location' => 'nullable|string|max:255',
+                'publisher_logo' => 'nullable|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'conference_name' => 'nullable|string|max:255',
+                'has_video' => 'nullable|boolean',
+                'view_count' => 'nullable|integer|min:0',
+                'link_url' => 'nullable|url',
+                'published_date' => 'nullable|date',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $news = News::find($id);
+            if (!$news) {
+                return $this->error('News not found', 404, [
+                    'message' => 'No news found with the given ID'
+                ]);
+            }
+
+            $updateData = $request->only(['location', 'publisher_name', 'conference_name', 'title', 'summary', 'has_video', 'view_count', 'link_url', 'published_date', 'is_active', 'sort_order']);
+
+            if ($request->hasFile('publisher_logo')) {
+                // Delete old logo if exists
+                if ($news->publisher_logo_path && file_exists(public_path($news->publisher_logo_path))) {
+                    @unlink(public_path($news->publisher_logo_path));
+                }
+                $stored = $request->file('publisher_logo')->store('news', 'public');
+                $updateData['publisher_logo_path'] = 'storage/' . $stored;
+            }
+
+            $news->update($updateData);
+            $news->publisher_logo_url = $news->publisher_logo_path ? url($news->publisher_logo_path) : null;
+
+            return $this->success('News updated successfully', 200, [
+                'news' => $news
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteNews(Request $request, $id)
+    {
+        try {
+            $news = News::find($id);
+            if (!$news) {
+                return $this->error('News not found', 404, [
+                    'message' => 'No news found with the given ID'
+                ]);
+            }
+
+            // Delete publisher logo file if exists
+            if ($news->publisher_logo_path && file_exists(public_path($news->publisher_logo_path))) {
+                @unlink(public_path($news->publisher_logo_path));
+            }
+
+            $news->delete();
+
+            return $this->success('News deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteNews(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'required|integer|exists:news,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $news = News::whereIn('id', $request->ids)->get();
+
+            foreach ($news as $n) {
+                // Delete publisher logo file if exists
+                if ($n->publisher_logo_path && file_exists(public_path($n->publisher_logo_path))) {
+                    @unlink(public_path($n->publisher_logo_path));
+                }
+            }
+
+            News::whereIn('id', $request->ids)->delete();
+
+            return $this->success('News deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active news for website (public endpoint)
+     */
+    public function getWebsiteNews(Request $request)
+    {
+        try {
+            $query = News::where('is_active', true);
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Sort by sort_order ascending
+            $news = $query->orderBy('sort_order', 'asc')
+                ->orderBy('published_date', 'desc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $items = $news->map(function ($n) {
+                return [
+                    'id' => $n->id,
+                    'location' => $n->location,
+                    'publisher_name' => $n->publisher_name,
+                    'publisher_logo_url' => $n->publisher_logo_path ? url($n->publisher_logo_path) : null,
+                    'conference_name' => $n->conference_name,
+                    'title' => $n->title,
+                    'summary' => $n->summary,
+                    'has_video' => $n->has_video,
+                    'view_count' => $n->view_count,
+                    'link_url' => $n->link_url,
+                    'published_date' => $n->published_date ? $n->published_date->format('Y-m-d') : null,
+                    'sort_order' => $n->sort_order,
+                ];
+            });
+
+            return $this->success('News retrieved successfully', 200, [
+                'news' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve news', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())

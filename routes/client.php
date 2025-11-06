@@ -20,6 +20,15 @@ Route::post('/ainet2025ppf', [FormController::class, 'storePpfs']);
 Route::post('/ainet2020drf',[FormController::class, 'storeDrfs']);
 Route::post('/check-user', [FormController::class, 'checkUserExists']);
 
+// Public website endpoints
+Route::get('/banners', [AdminController::class, 'getWebsiteBanners']);
+Route::get('/conference', [AdminController::class, 'getWebsiteConference']);
+Route::get('/events', [AdminController::class, 'getWebsiteEvents']);
+Route::get('/partners', [AdminController::class, 'getWebsitePartners']);
+Route::get('/galleries', [AdminController::class, 'getWebsiteGalleries']);
+Route::get('/news', [AdminController::class, 'getWebsiteNews']);
+Route::post('/newsletter/subscribe', [AdminController::class, 'subscribeNewsletter']);
+
 // Admin authentication routes
 Route::prefix('admin')->group(function () {
     Route::post('/login', [AdminController::class, 'login']);
@@ -68,6 +77,52 @@ Route::prefix('admin')->group(function () {
         Route::put('/blogs/{id}', [AdminController::class, 'updateBlog']);
         Route::delete('/blogs/{id}', [AdminController::class, 'deleteBlog']);
         Route::delete('/blogs/bulk', [AdminController::class, 'bulkDeleteBlog']);
+
+        // Banner CRUD operations
+        Route::get('/banners', [AdminController::class, 'getBannerList']);
+        Route::post('/banners', [AdminController::class, 'createBanner']);
+        Route::get('/banners/{id}', [AdminController::class, 'getBanner']);
+        Route::put('/banners/{id}', [AdminController::class, 'updateBanner']);
+        Route::delete('/banners/{id}', [AdminController::class, 'deleteBanner']);
+        Route::delete('/banners/bulk', [AdminController::class, 'bulkDeleteBanner']);
+
+        // Event CRUD operations
+        Route::get('/events', [AdminController::class, 'getEventList']);
+        Route::post('/events', [AdminController::class, 'createEvent']);
+        Route::get('/events/{id}', [AdminController::class, 'getEvent']);
+        Route::put('/events/{id}', [AdminController::class, 'updateEvent']);
+        Route::delete('/events/{id}', [AdminController::class, 'deleteEvent']);
+        Route::delete('/events/bulk', [AdminController::class, 'bulkDeleteEvent']);
+
+        // Partner CRUD operations
+        Route::get('/partners', [AdminController::class, 'getPartnerList']);
+        Route::post('/partners', [AdminController::class, 'createPartner']);
+        Route::get('/partners/{id}', [AdminController::class, 'getPartner']);
+        Route::put('/partners/{id}', [AdminController::class, 'updatePartner']);
+        Route::delete('/partners/{id}', [AdminController::class, 'deletePartner']);
+        Route::delete('/partners/bulk', [AdminController::class, 'bulkDeletePartner']);
+
+        // Gallery CRUD operations
+        Route::get('/galleries', [AdminController::class, 'getGalleryList']);
+        Route::post('/galleries', [AdminController::class, 'createGallery']);
+        Route::get('/galleries/{id}', [AdminController::class, 'getGallery']);
+        Route::put('/galleries/{id}', [AdminController::class, 'updateGallery']);
+        Route::delete('/galleries/{id}', [AdminController::class, 'deleteGallery']);
+        Route::delete('/galleries/bulk', [AdminController::class, 'bulkDeleteGallery']);
+
+        // Newsletter CRUD operations
+        Route::get('/newsletters', [AdminController::class, 'getNewsletterList']);
+        Route::get('/newsletters/{id}', [AdminController::class, 'getNewsletterSubscription']);
+        Route::delete('/newsletters/{id}', [AdminController::class, 'deleteNewsletter']);
+        Route::delete('/newsletters/bulk', [AdminController::class, 'bulkDeleteNewsletter']);
+
+        // News CRUD operations (AINET In News)
+        Route::get('/news', [AdminController::class, 'getNewsList']);
+        Route::post('/news', [AdminController::class, 'createNews']);
+        Route::get('/news/{id}', [AdminController::class, 'getNews']);
+        Route::put('/news/{id}', [AdminController::class, 'updateNews']);
+        Route::delete('/news/{id}', [AdminController::class, 'deleteNews']);
+        Route::delete('/news/bulk', [AdminController::class, 'bulkDeleteNews']);
         
         // Membership CRUD operations
         Route::get('/memberships', [AdminController::class, 'getMembershipList']);

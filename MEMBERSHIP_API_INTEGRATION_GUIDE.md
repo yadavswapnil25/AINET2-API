@@ -87,7 +87,7 @@ src/
 ```javascript
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1/client';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1/client';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -667,7 +667,7 @@ export default MembershipList;
 ### 8. Environment Variables (`.env`)
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api/v1/client
+VITE_API_URL=http://localhost:8000/api/v1/client
 ```
 
 ---
