@@ -17,6 +17,7 @@ use App\Models\News;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -855,12 +856,34 @@ class AdminController extends Controller
 
             // Search functionality
             if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'LIKE', "%{$search}%")
-                      ->orWhere('email', 'LIKE', "%{$search}%")
-                      ->orWhere('mobile', 'LIKE', "%{$search}%")
-                      ->orWhere('m_id', 'LIKE', "%{$search}%")
-                      ->orWhere('institution', 'LIKE', "%{$search}%");
+                static $institutionColumns = null;
+
+                if ($institutionColumns === null) {
+                    $optionalColumns = [
+                        'institution',
+                        'name_institution',
+                        'address_institution',
+                        'type_institution',
+                        'other_institution',
+                    ];
+
+                    $institutionColumns = array_values(array_filter($optionalColumns, static function (string $column) {
+                        return Schema::hasColumn('users', $column);
+                    }));
+                }
+
+                $searchableColumns = array_merge([
+                    'name',
+                    'email',
+                    'mobile',
+                    'm_id',
+                ], $institutionColumns);
+
+                $query->where(function ($q) use ($search, $searchableColumns) {
+                    foreach ($searchableColumns as $index => $column) {
+                        $method = $index === 0 ? 'where' : 'orWhere';
+                        $q->{$method}($column, 'LIKE', "%{$search}%");
+                    }
                 });
             }
 
