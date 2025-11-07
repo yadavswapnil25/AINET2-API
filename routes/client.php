@@ -135,6 +135,8 @@ Route::prefix('admin')->group(function () {
 
 // Client authentication routes
 Route::post('/auth/login', [LoginController::class, 'login'])->name('login');
+Route::post('/auth/forgot-password', [LoginController::class, 'forgotPassword'])->name('password.forgot');
+Route::post('/auth/reset-password', [LoginController::class, 'resetPassword'])->name('password.reset');
 Route::middleware('auth:api')->group(function () {
     Route::get('/auth/profile', [LoginController::class, 'profile']);
     Route::post('/auth/{id}/profile', [LoginController::class, 'updateProfile']);
