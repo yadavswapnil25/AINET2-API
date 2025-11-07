@@ -183,8 +183,8 @@ class LoginController extends Controller
                 return $this->error('Failed to send password reset email. Please try again later.', 500);
             }
 
-            return $this->success('Password reset link has been sent to your email address.', 200, [
-                'message' => 'If the email exists in our system, you will receive a password reset link.'
+            return $this->success('Password reset link has been sent to your email. Please check your inbox and spam folder.', 200, [
+                'message' => 'If the email exists in our system, you will receive a password reset link shortly. Remember to check your spam or junk folder.'
             ]);
         } catch (\Exception $exception) {
             Log::error('Forgot password error: ' . $exception->getMessage());
