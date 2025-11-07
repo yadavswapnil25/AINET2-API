@@ -15,8 +15,6 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rules\Enum;
@@ -167,8 +165,8 @@ class LoginController extends Controller
             // Delete any existing tokens for this user
             DB::table('password_reset_tokens')->where('email', $user->email)->delete();
             
-            // Create new token
-            $token = Str::random(64);
+            // Create new 6-digit OTP token
+            $token = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             DB::table('password_reset_tokens')->insert([
                 'email' => $user->email,
                 'token' => Hash::make($token),
@@ -183,8 +181,8 @@ class LoginController extends Controller
                 return $this->error('Failed to send password reset email. Please try again later.', 500);
             }
 
-            return $this->success('Password reset link has been sent to your email. Please check your inbox and spam folder.', 200, [
-                'message' => 'If the email exists in our system, you will receive a password reset link shortly. Remember to check your spam or junk folder.'
+            return $this->success('Password reset code has been sent to your email. Please check your inbox and spam folder.', 200, [
+                'message' => 'If the email exists in our system, you will receive a 6-digit password reset code shortly. Remember to check your spam or junk folder.'
             ]);
         } catch (\Exception $exception) {
             Log::error('Forgot password error: ' . $exception->getMessage());
@@ -213,19 +211,19 @@ class LoginController extends Controller
                 ->first();
 
             if (!$passwordReset) {
-                return $this->error('Invalid or expired reset token. Please request a new password reset link.', 400);
+                return $this->error('Invalid or expired reset code. Please request a new password reset code.', 400);
             }
 
             // Check if token is expired (60 minutes)
             $tokenAge = now()->diffInMinutes($passwordReset->created_at);
             if ($tokenAge > 60) {
                 DB::table('password_reset_tokens')->where('email', $request->email)->delete();
-                return $this->error('Reset token has expired. Please request a new password reset link.', 400);
+                return $this->error('Reset code has expired. Please request a new password reset code.', 400);
             }
 
             // Verify the token
             if (!Hash::check($request->token, $passwordReset->token)) {
-                return $this->error('Invalid reset token. Please request a new password reset link.', 400);
+                return $this->error('Invalid reset code. Please request a new password reset code.', 400);
             }
 
             // Update user password

@@ -5653,7 +5653,7 @@
 								"forgot-password"
 							]
 						},
-						"description": "Request password reset link. A reset link will be sent to the provided email address via Mailgun."
+                        "description": "Request a 6-digit password reset code. The OTP will be emailed via Mailgun and expires in 60 minutes."
 					},
 					"response": []
 				},
@@ -5807,7 +5807,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"reset-token-from-email\",\n    \"password\": \"newpassword123\",\n    \"password_confirmation\": \"newpassword123\"\n}"
+                            "raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"123456\",\n    \"password\": \"newpassword123\",\n    \"password_confirmation\": \"newpassword123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/client/auth/reset-password",
@@ -5822,7 +5822,7 @@
 								"reset-password"
 							]
 						},
-						"description": "Reset password using token received from forgot password email. Token expires after 60 minutes."
+                        "description": "Reset password using the 6-digit code received via email. Codes expire after 60 minutes."
 					},
 					"response": []
 				},
@@ -5865,7 +5865,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"invalid-token\",\n    \"password\": \"newpassword123\",\n    \"password_confirmation\": \"newpassword123\"\n}"
+                            "raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"000000\",\n    \"password\": \"newpassword123\",\n    \"password_confirmation\": \"newpassword123\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/client/auth/reset-password",
@@ -5880,7 +5880,7 @@
 								"reset-password"
 							]
 						},
-						"description": "Test reset password with invalid token"
+                        "description": "Test reset password with an invalid 6-digit code"
 					},
 					"response": []
 				},
@@ -5923,7 +5923,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"reset-token\",\n    \"password\": \"123\",\n    \"password_confirmation\": \"456\"\n}"
+                            "raw": "{\n    \"email\": \"user@example.com\",\n    \"token\": \"123456\",\n    \"password\": \"123\",\n    \"password_confirmation\": \"456\"\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/client/auth/reset-password",
@@ -5938,7 +5938,7 @@
 								"reset-password"
 							]
 						},
-						"description": "Test reset password validation errors (password too short, confirmation mismatch)"
+                        "description": "Test reset password validation errors (password too short, confirmation mismatch)"
 					},
 					"response": []
 				},

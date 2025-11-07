@@ -50,7 +50,6 @@ class ForgotPasswordMail extends MailLayout
                     'email' => $this->user->email,
                 ],
                 'token' => $this->token,
-                'resetUrl' => config('app.frontend_url', 'https://theainet.net') . '/reset-password?token=' . $this->token . '&email=' . urlencode($this->user->email),
             ]
         );
     }
