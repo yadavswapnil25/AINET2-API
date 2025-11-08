@@ -50,6 +50,7 @@ class MembershipController extends Controller
             $emailPerson = $data['emailperson'] ?? null;
             $mobilePerson = $data['mobileperson'] ?? null;
             $collaborate = $data['collaborate'] ?? null;
+            $paymentId = $data['payment_id'] ?? null;
 
             // Convert dob to Y-m-d format if needed
             if ($dob && preg_match('/\d{2}\/\d{2}\/\d{4}/', $dob)) {
@@ -91,6 +92,7 @@ class MembershipController extends Controller
                 'emailperson ' => $emailPerson,
                 'mobileperson' => $mobilePerson,
                 'collaborate' => $collaborate,
+                'payment_id' => $paymentId,
             ]);
             // Send welcome email after successful user creation
             try {

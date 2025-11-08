@@ -41,6 +41,7 @@ class User extends Authenticatable
         'pin',
         'image',
         'role_id',
+        'payment_id',
         'name_association',
         'expectation',
         'has_newsletter',
