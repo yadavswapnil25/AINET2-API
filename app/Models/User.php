@@ -40,6 +40,7 @@ class User extends Authenticatable
         'membership_plan',
         'pin',
         'image',
+        'role_id',
         'name_association',
         'expectation',
         'has_newsletter',
@@ -71,6 +72,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role_id' => 'integer',
         ];
     }
 

@@ -45,6 +45,14 @@ class AdminController extends Controller
             // Attempt to authenticate admin user
             if (Auth::attempt($credentials)) {
                 $user = Auth::user();
+
+                if ((int) $user->role_id !== 1) {
+                    Auth::logout();
+                    return $this->error('Unauthorized', 403, [
+                        'message' => 'Only admin users can access the admin panel'
+                    ]);
+                }
+
                 $accessGrant = $user->createToken('Admin Token');
 
                 return $this->success('Admin logged in successfully', 200, [
@@ -52,6 +60,7 @@ class AdminController extends Controller
                         'id' => $user->id,
                         'name' => $user->name,
                         'email' => $user->email,
+                        'role_id' => $user->role_id,
                     ],
                     'access_token' => $accessGrant->accessToken,
                     'token_type' => 'Bearer'
@@ -120,6 +129,7 @@ class AdminController extends Controller
                     'id' => $user->id,
                     'name' => $user->name,
                     'email' => $user->email,
+                    'role_id' => $user->role_id,
                     'created_at' => $user->created_at,
                     'updated_at' => $user->updated_at,
                 ]
@@ -972,6 +982,7 @@ class AdminController extends Controller
                 'type_institution' => 'nullable|string',
                 'other_institution' => 'nullable|string',
                 'contact_person' => 'nullable|string',
+                'role_id' => 'nullable|integer|exists:roles,id',
             ]);
 
             if ($validator->fails()) {
@@ -1028,6 +1039,7 @@ class AdminController extends Controller
                 'type_institution' => 'nullable|string',
                 'other_institution' => 'nullable|string',
                 'contact_person' => 'nullable|string',
+                'role_id' => 'nullable|integer|exists:roles,id',
             ]);
 
             if ($validator->fails()) {
