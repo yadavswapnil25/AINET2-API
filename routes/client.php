@@ -60,10 +60,10 @@ Route::prefix('admin')->group(function () {
         Route::get('/users', [AdminController::class, 'getUserList']);
         Route::get('/users/stats', [AdminController::class, 'getUserStats']);
         Route::post('/users', [AdminController::class, 'createUser']);
+        Route::delete('/users/bulk', [AdminController::class, 'bulkDeleteUser']);
         Route::get('/users/{id}', [AdminController::class, 'getUser']);
         Route::put('/users/{id}', [AdminController::class, 'updateUser']);
         Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
-        Route::delete('/users/bulk', [AdminController::class, 'bulkDeleteUser']);
         
         // Admin users (role_id = 1)
         Route::get('/admin-users', [AdminController::class, 'getAdminUsers']);

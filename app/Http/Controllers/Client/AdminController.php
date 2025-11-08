@@ -982,7 +982,7 @@ class AdminController extends Controller
                 'type_institution' => 'nullable|string',
                 'other_institution' => 'nullable|string',
                 'contact_person' => 'nullable|string',
-                'role_id' => 'nullable|integer|exists:roles,id',
+                'role_id' => 'required|integer|exists:roles,id',
             ]);
 
             if ($validator->fails()) {
@@ -1039,7 +1039,7 @@ class AdminController extends Controller
                 'type_institution' => 'nullable|string',
                 'other_institution' => 'nullable|string',
                 'contact_person' => 'nullable|string',
-                'role_id' => 'nullable|integer|exists:roles,id',
+                'role_id' => 'required|integer|exists:roles,id',
             ]);
 
             if ($validator->fails()) {
@@ -1179,6 +1179,9 @@ class AdminController extends Controller
                     ->get(),
                 'users_with_membership_id' => User::whereNotNull('m_id')->count(),
                 'users_without_membership_id' => User::whereNull('m_id')->count(),
+                'male_members' => User::where('gender', 'Male')->count(),
+                'female_members' => User::where('gender', 'Female')->count(),
+                'blocked_members' => User::where('status', 0)->count(),
             ];
 
             return $this->success('User statistics retrieved successfully', 200, [
