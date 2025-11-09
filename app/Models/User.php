@@ -42,6 +42,8 @@ class User extends Authenticatable
         'image',
         'role_id',
         'payment_id',
+        'payment_status',
+        'razorpay_order_id',
         'name_association',
         'expectation',
         'has_newsletter',
@@ -74,6 +76,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'role_id' => 'integer',
+            'payment_status' => 'string',
         ];
     }
 

@@ -15,6 +15,10 @@ Route::get('/test', function () {
 });
 
 Route::post('/membership-signup', [MembershipController::class, 'signup']);
+Route::prefix('payments')->group(function () {
+    Route::post('/order', [PaymentController::class, 'createOrder']);
+});
+Route::post('/membership-signup/confirm', [MembershipController::class, 'confirmPayment']);
 Route::get('eventValidationHandle', [PaymentController::class, 'eventValidationHandle']);
 Route::post('/ainet2025ppf', [FormController::class, 'storePpfs']);
 Route::post('/ainet2020drf',[FormController::class, 'storeDrfs']);

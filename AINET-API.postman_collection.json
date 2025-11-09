@@ -395,6 +395,174 @@
 			"description": "Public website APIs that don't require authentication"
 		},
 		{
+			"name": "Payments & Membership",
+			"item": [
+				{
+					"name": "Create Razorpay Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response contains order details', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('order');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 500,\n    \"currency\": \"INR\",\n    \"receipt\": \"membership-IND-001\",\n    \"notes\": {\n        \"membership_type\": \"Individual\",\n        \"membership_plan\": \"Annual\"\n    },\n    \"user_id\": 1234\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/payments/order",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"payments",
+								"order"
+							]
+						},
+						"description": "Create a Razorpay order (amount in INR). The backend auto-captures successful payments linked to the order."
+					},
+					"response": []
+				},
+				{
+					"name": "Membership Signup (Create Pending Member)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response contains pending user details', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('user');",
+									"    pm.environment.set('pending_membership_user_id', jsonData.data.user.id);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Amita\",\n    \"last_name\": \"Patel\",\n    \"gender\": \"Female\",\n    \"dob\": \"1990-05-15\",\n    \"mobile\": \"9123456780\",\n    \"whatsapp_no\": \"9123456780\",\n    \"email\": \"amita.patel@example.com\",\n    \"address\": \"123 Residency Road, Pune\",\n    \"state\": \"Maharashtra\",\n    \"district\": \"Pune\",\n    \"teaching_exp\": 5,\n    \"qualification\": [\"B.Ed\"],\n    \"area_of_work\": [\"Secondary School\"],\n    \"password\": \"StrongPass#1\",\n    \"password_confirmation\": \"StrongPass#1\",\n    \"membership_type\": \"Individual\",\n    \"membership_plan\": \"Annual\",\n    \"pin\": \"411001\",\n    \"has_member_any\": false,\n    \"expectation\": \"Networking and workshops\",\n    \"has_newsletter\": true,\n    \"title\": \"Ms\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/membership-signup",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"membership-signup"
+							]
+						},
+						"description": "Submit membership details to create a pending member. Call this before launching Razorpay Checkout."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Membership Payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Payment confirmation payload looks correct', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"    pm.expect(jsonData.data).to.have.property('payment');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"user_id\": {{pending_membership_user_id}},\n    \"razorpay_order_id\": \"order_N2M7x1A1b2c3d4\",\n    \"razorpay_payment_id\": \"pay_N2M7y2B3c4d5\",\n    \"razorpay_signature\": \"generated-signature-from-razorpay\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/membership-signup/confirm",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"membership-signup",
+								"confirm"
+							]
+						},
+						"description": "Confirm a captured Razorpay payment for the pending member. The backend verifies signature, captures if needed, and stores the payment details."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints that support the two-step membership flow with Razorpay Orders."
+		},
+		{
 			"name": "PPF (Paper Presentation Form)",
 			"item": [
 				{
@@ -916,6 +1084,129 @@
 				}
 			],
 			"description": "User management endpoints"
+		},
+		{
+			"name": "Payments & Membership",
+			"item": [
+				{
+					"name": "Create Razorpay Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});",
+									"",
+									"pm.test('Response contains order details', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('order');",
+									"    pm.expect(jsonData.data.order).to.have.property('id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 1500,\n    \"currency\": \"INR\",\n    \"receipt\": \"ORDER-{{timestamp}}\",\n    \"notes\": {\n        \"purpose\": \"AINET Membership\"\n    },\n    \"customer\": {\n        \"name\": \"Test User\",\n        \"email\": \"test.user@example.com\",\n        \"contact\": \"+919876543210\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/payments/order",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"payments",
+								"order"
+							]
+						},
+						"description": "Create a Razorpay order with auto-capture enabled. Use the returned order_id in Razorpay Checkout."
+					},
+					"response": []
+				},
+				{
+					"name": "Membership Signup (Razorpay Payment)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201', function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test('Response has success status', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql(true);",
+									"});",
+									"",
+									"pm.test('Response contains payment information', function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.data).to.have.property('payment');",
+									"    pm.expect(jsonData.data.payment).to.have.property('payment_id');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"first_name\": \"Test\",\n    \"last_name\": \"Member\",\n    \"dob\": \"1990-01-01\",\n    \"gender\": \"Male\",\n    \"mobile\": \"+919876543210\",\n    \"whatsapp_no\": \"+919876543210\",\n    \"email\": \"new.member+{{timestamp}}@example.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"address\": \"123 Test Street\",\n    \"state\": \"Maharashtra\",\n    \"district\": \"Pune\",\n    \"teaching_exp\": 5,\n    \"qualification\": [\"B.Ed\", \"M.A\"],\n    \"area_of_work\": [\"Teacher\", \"Trainer\"],\n    \"membership_type\": \"Individual\",\n    \"membership_plan\": \"Annual\",\n    \"razorpay_order_id\": \"{{razorpay_order_id}}\",\n    \"razorpay_payment_id\": \"{{razorpay_payment_id}}\",\n    \"razorpay_signature\": \"{{razorpay_signature}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/client/membership-signup",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"client",
+								"membership-signup"
+							]
+						},
+						"description": "Complete membership signup after a successful Razorpay payment. Supply the payment details returned by Razorpay Checkout."
+					},
+					"response": []
+				}
+			],
+			"description": "Public payment and membership signup endpoints using Razorpay Orders"
 		},
 		{
 			"name": "Admin Authentication",
