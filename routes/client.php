@@ -49,7 +49,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/drf/{id}', [AdminController::class, 'getDrf']);
         Route::put('/drf/{id}', [AdminController::class, 'updateDrf']);
         Route::delete('/drf/{id}', [AdminController::class, 'deleteDrf']);
-        Route::delete('/drf/bulk', [AdminController::class, 'bulkDeleteDrf']);
+        Route::post('/drf/bulk', [AdminController::class, 'bulkDeleteDrf']);
         
         // PPF CRUD operations
         Route::get('/ppf', [AdminController::class, 'getPpfList']);
@@ -58,7 +58,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/ppf/{id}', [AdminController::class, 'getPpf']);
         Route::put('/ppf/{id}', [AdminController::class, 'updatePpf']);
         Route::delete('/ppf/{id}', [AdminController::class, 'deletePpf']);
-        Route::delete('/ppf/bulk', [AdminController::class, 'bulkDeletePpf']);
+        Route::post('/ppf/bulk', [AdminController::class, 'bulkDeletePpf']);
         
         // User CRUD operations
         Route::get('/users', [AdminController::class, 'getUserList']);

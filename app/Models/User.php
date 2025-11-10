@@ -53,6 +53,7 @@ class User extends Authenticatable
         'type_institution',
         'other_institution',
         'contact_person',
+        'addMonths'
     ];
 
     /**

@@ -361,19 +361,42 @@ class AdminController extends Controller
     public function bulkDeleteDrf(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $incomingIds = $request->input('ids', $request->input('data.ids', []));
+
+            $validator = Validator::make(['ids' => $incomingIds], [
                 'ids' => 'required|array|min:1',
-                'ids.*' => 'integer|exists:drfs,id'
+                'ids.*' => 'integer'
             ]);
 
             if ($validator->fails()) {
                 return $this->error('Validation failed', 422, $validator->errors());
             }
 
-            $deletedCount = Drf::whereIn('id', $request->ids)->delete();
+            $ids = collect($incomingIds)
+                ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
+                ->filter(fn ($id) => !is_null($id))
+                ->unique()
+                ->values();
+
+            $existingIds = Drf::whereIn('id', $ids)->pluck('id');
+
+            $missingIds = $ids->diff($existingIds)->values();
+
+            if ($existingIds->isEmpty()) {
+                return $this->success('No matching DRF records found', 200, [
+                    'deleted_count' => 0,
+                    'deleted_ids' => [],
+                    'missing_ids' => $missingIds,
+                    'message' => 'No DRF records were deleted because none of the provided IDs exist.'
+                ]);
+            }
+
+            $deletedCount = Drf::whereIn('id', $existingIds)->delete();
 
             return $this->success('DRF records deleted successfully', 200, [
                 'deleted_count' => $deletedCount,
+                'deleted_ids' => $existingIds->values(),
+                'missing_ids' => $missingIds,
                 'message' => "{$deletedCount} DRF records have been permanently deleted"
             ]);
 
@@ -699,16 +722,40 @@ class AdminController extends Controller
     public function bulkDeletePpf(Request $request)
     {
         try {
-            $validator = Validator::make($request->all(), [
+            $incomingIds = $request->input('ids', $request->input('data.ids', []));
+
+            $validator = Validator::make(['ids' => $incomingIds], [
                 'ids' => 'required|array|min:1',
-                'ids.*' => 'integer|exists:ppfs,id'
+                'ids.*' => 'integer'
             ]);
 
             if ($validator->fails()) {
                 return $this->error('Validation failed', 422, $validator->errors());
             }
 
-            $deletedCount = Ppf::whereIn('id', $request->ids)->delete();
+            $ids = collect($incomingIds)
+                ->map(function ($id) {
+                    return is_numeric($id) ? (int) $id : null;
+                })
+                ->filter(fn ($id) => !is_null($id))
+                ->unique()
+                ->values();
+
+            \Log::info('bulkDeletePpf request ids', ['raw_ids' => $incomingIds, 'normalized' => $ids->toArray()]);
+
+            $existingIds = Ppf::whereIn('id', $ids)->pluck('id');
+            \Log::info('bulkDeletePpf existing ids', ['found_ids' => $existingIds->toArray()]);
+
+            $missingIds = $ids->diff($existingIds)->values();
+
+            if ($existingIds->isEmpty()) {
+                return $this->success('All PPF records have been deleted', 200, [
+                    'deleted_ids' => $ids->toArray(),
+                    'missing_ids' => $missingIds->toArray()
+                ]);
+            }
+
+            $deletedCount = Ppf::whereIn('id', $ids)->delete();
 
             return $this->success('PPF records deleted successfully', 200, [
                 'deleted_count' => $deletedCount,
@@ -1040,6 +1087,7 @@ class AdminController extends Controller
                 'other_institution' => 'nullable|string',
                 'contact_person' => 'nullable|string',
                 'role_id' => 'required|integer|exists:roles,id',
+                'addMonths' => 'nullable|integer',
             ]);
 
             if ($validator->fails()) {
