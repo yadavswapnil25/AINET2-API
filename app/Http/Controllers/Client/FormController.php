@@ -11,10 +11,18 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePpfRequest;
 use App\Http\Requests\StoreDrfRequest;
 use Illuminate\Support\Facades\DB;
+use App\Services\RazorpayService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 class FormController extends Controller
 {
     use Response;
+
+    public function __construct(protected RazorpayService $razorpay)
+    {
+    }
 
     public function storePpfs(StorePpfRequest $request){
         try {
@@ -84,8 +92,16 @@ class FormController extends Controller
     public function storeDrfs(StoreDrfRequest $request){
         try {
             return DB::transaction(function () use ($request) {
-                $drf = new Drf;
+                $drf = Drf::where('email', $request->email)
+                    ->orderByDesc('created_at')
+                    ->first();
 
+                $isUpdate = (bool) $drf;
+
+                if (!$drf) {
+                    $drf = new Drf;
+                }
+ 
                 $drf->member = $request->member;
             $drf->you_are_register_as = $request->you_are_register_as;
             $drf->pre_title = $request->pre_title;
@@ -103,23 +119,34 @@ class FormController extends Controller
 
             if(!empty($request->areas)){
                 $areas = $request->areas;
-                if(in_array("Other",$areas)){
-                    array_push($areas,$request->other);
-                }
                 $drf->areas = implode(',', $areas);
+            } else {
+                $drf->areas = null;
             }
+
+            $drf->other = $request->other;
 
             $drf->experience = $request->experience;
 
-            if($request->conference === "Yes"){
-                $drf->conference = implode(',', $request->types ?? []);
-            }else{
-                $drf->conference = $request->conference;
+            if ($drf->payment_status !== 'paid') {
+                $drf->payment_status = 'pending';
+                $drf->payment_id = null;
+                $drf->razorpay_order_id = null;
             }
-            
-                $drf->save();
 
-                return $this->success('DRF submitted successfully', 201, [ 'id' => $drf->id ]);
+            if($request->conference === "Yes"){
+                $drf->conference = 'YES';
+                $drf->types = implode(',', $request->types ?? []);
+            }else{
+                $drf->conference = 'NO';
+                $drf->types = null;
+            }
+ 
+                $drf->save();
+ 
+                $message = $isUpdate ? 'DRF updated successfully' : 'DRF submitted successfully';
+
+                return $this->success($message, $isUpdate ? 200 : 201, [ 'id' => $drf->id, 'updated' => $isUpdate ]);
             });
         } catch (\Illuminate\Database\QueryException $e) {
             // Transaction automatically rolls back on exception
@@ -136,6 +163,234 @@ class FormController extends Controller
                 'file' => basename($e->getFile())
             ]);
         }
+    }
+
+    public function getDrfByEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $drf = Drf::where('email', $request->email)
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$drf) {
+            return $this->success('DRF record not found', 200, [
+                'exists' => false
+            ]);
+        }
+
+        $areas = $drf->areas ? array_values(array_filter(array_map('trim', explode(',', $drf->areas)))) : [];
+        $types = $drf->types ? array_values(array_filter(array_map('trim', explode(',', $drf->types)))) : [];
+
+        $conferenceValue = strtoupper($drf->conference ?? '');
+        $isPresenting = $conferenceValue === 'YES' || (!empty($types) && $conferenceValue !== 'NO') ? 'YES' : 'NO';
+
+        if ($isPresenting === 'YES' && empty($types) && $conferenceValue && $conferenceValue !== 'YES' && $conferenceValue !== 'NO') {
+            $types = array_values(array_filter(array_map('trim', explode(',', $drf->conference))));
+        }
+
+        return $this->success('DRF record found', 200, [
+            'exists' => true,
+            'drf' => [
+                'member' => $drf->member,
+                'delegate_type' => $drf->you_are_register_as,
+                'title' => $drf->pre_title,
+                'full_name' => $drf->name,
+                'gender' => $drf->gender,
+                'age' => $drf->age,
+                'institution_address' => $drf->institution,
+                'correspondence_address' => $drf->address,
+                'city' => $drf->city,
+                'pincode' => $drf->pincode,
+                'state' => $drf->state,
+                'country_code' => $drf->country_code,
+                'mobile_no' => $drf->phone_no,
+                'email' => $drf->email,
+                'area_of_work' => $areas,
+                'other_work_area' => $drf->other,
+                'teaching_experience' => $drf->experience,
+                'is_presenting' => $isPresenting,
+                'presentation_type' => $types,
+            ],
+        ]);
+    }
+
+    public function createDrfOrder(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'drf_id' => 'required|integer|exists:drves,id',
+        ]);
+
+        $drf = Drf::findOrFail($validated['drf_id']);
+
+        if ($drf->payment_status === 'paid') {
+            return response()->json([
+                'status' => false,
+                'message' => 'Payment has already been completed for this registration.',
+            ], 409);
+        }
+
+        $amountRupees = $this->calculateDrfAmount($drf);
+        if ($amountRupees <= 0) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unable to determine delegate fee amount.',
+            ], 422);
+        }
+
+        try {
+            $order = $this->razorpay->createOrder(
+                $amountRupees,
+                'INR',
+                'DRF-' . $drf->id . '-' . now()->timestamp,
+                [
+                    'drf_id' => (string) $drf->id,
+                    'email' => $drf->email,
+                ]
+            );
+
+            $drf->razorpay_order_id = $order['id'] ?? null;
+            $drf->payment_status = 'pending';
+            $drf->save();
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Order created successfully',
+                'data' => [
+                    'order' => $order,
+                    'amount' => (int) ($order['amount'] ?? ($amountRupees * 100)),
+                    'currency' => $order['currency'] ?? 'INR',
+                    'key' => env('RAZORPAY_KEY_ID', null),
+                ],
+            ]);
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    public function confirmDrfPayment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'drf_id' => 'required|integer|exists:drves,id',
+            'razorpay_order_id' => 'required|string',
+            'razorpay_payment_id' => 'required|string',
+            'razorpay_signature' => 'required|string',
+        ]);
+
+        $drf = Drf::findOrFail($validated['drf_id']);
+
+        if ($drf->payment_status === 'paid') {
+            return response()->json([
+                'status' => true,
+                'message' => 'Payment already confirmed.',
+            ]);
+        }
+
+        if ($drf->razorpay_order_id !== $validated['razorpay_order_id']) {
+            return response()->json([
+                'status' => false,
+                'message' => 'The payment is not linked with this registration.',
+            ], 422);
+        }
+
+        $isSignatureValid = $this->razorpay->verifySignature(
+            $validated['razorpay_order_id'],
+            $validated['razorpay_payment_id'],
+            $validated['razorpay_signature']
+        );
+
+        if (!$isSignatureValid) {
+            return response()->json([
+                'status' => false,
+                'message' => 'The payment signature could not be verified.',
+            ], 422);
+        }
+
+        $amountPaise = (int) round($this->calculateDrfAmount($drf) * 100);
+
+        try {
+            $payment = $this->razorpay->fetchPayment($validated['razorpay_payment_id']);
+        } catch (RuntimeException $e) {
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+
+        $paymentStatus = $payment['status'] ?? null;
+
+        if (($payment['order_id'] ?? null) !== $validated['razorpay_order_id']) {
+            return response()->json([
+                'status' => false,
+                'message' => 'The payment is not linked with this registration order.',
+            ], 422);
+        }
+
+        if (!in_array($paymentStatus, ['captured', 'authorized'], true)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'The payment could not be captured. Please contact support.',
+                'payment_status' => $paymentStatus,
+            ], 422);
+        }
+
+        if ($paymentStatus === 'authorized') {
+            try {
+                $payment = $this->razorpay->capturePayment($validated['razorpay_payment_id'], $amountPaise);
+                $paymentStatus = $payment['status'] ?? null;
+            } catch (RuntimeException $e) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Unable to capture payment: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            if ($paymentStatus !== 'captured') {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'The payment could not be captured. Please contact support.',
+                    'payment_status' => $paymentStatus,
+                ], 422);
+            }
+        }
+
+        $drf->payment_status = 'paid';
+        $drf->payment_id = $validated['razorpay_payment_id'];
+        $drf->save();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Payment confirmed successfully.',
+        ]);
+    }
+
+    protected function calculateDrfAmount(Drf $drf): float
+    {
+        $delegateType = trim((string) $drf->you_are_register_as);
+        $now = now();
+        $cutoff = now()->setDate(2025, 12, 25)->endOfDay();
+        $isEarlyBird = $now->lessThanOrEqualTo($cutoff);
+
+        $delegateTypeLower = strtolower($delegateType);
+
+        if (str_contains($delegateTypeLower, 'overseas')) {
+            return 5000.0;
+        }
+
+        if (str_contains($delegateTypeLower, 'research') || str_contains($delegateTypeLower, 'student')) {
+            return $isEarlyBird ? 1200.0 : 2000.0;
+        }
+
+        if (str_contains($delegateTypeLower, 'other')) {
+            return $isEarlyBird ? 2500.0 : 3500.0;
+        }
+
+        return $isEarlyBird ? 2500.0 : 3500.0;
     }
 
     /**

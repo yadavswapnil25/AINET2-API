@@ -32,7 +32,7 @@ class StoreDrfRequest extends FormRequest
             'areas' => 'nullable|array',
             'areas.*' => 'string',
             'other' => 'nullable|string',
-            'experience' => 'nullable|string',
+            'experience' => 'required|string',
             'conference' => 'required|string',
             'types' => 'nullable|array',
             'types.*' => 'string',

@@ -22,6 +22,9 @@ Route::post('/membership-signup/confirm', [MembershipController::class, 'confirm
 Route::get('eventValidationHandle', [PaymentController::class, 'eventValidationHandle']);
 Route::post('/ainet2025ppf', [FormController::class, 'storePpfs']);
 Route::post('/ainet2020drf',[FormController::class, 'storeDrfs']);
+Route::get('/ainet2020drf/check',[FormController::class, 'getDrfByEmail']);
+Route::post('/ainet2020drf/payment/order',[FormController::class, 'createDrfOrder']);
+Route::post('/ainet2020drf/payment/confirm',[FormController::class, 'confirmDrfPayment']);
 Route::post('/check-user', [FormController::class, 'checkUserExists']);
 
 // Public website endpoints
