@@ -31,6 +31,7 @@ class StoreDrfRequest extends FormRequest
             'email' => 'required|email',
             'areas' => 'nullable|array',
             'areas.*' => 'string',
+            'areas_of_interest' => 'nullable|string',
             'other' => 'nullable|string',
             'experience' => 'required|string',
             'conference' => 'required|string',

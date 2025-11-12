@@ -15,6 +15,9 @@ use App\Services\RazorpayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Mail;
+use App\Mails\DrfPaymentReceiptMail;
 
 class FormController extends Controller
 {
@@ -93,6 +96,7 @@ class FormController extends Controller
         try {
             return DB::transaction(function () use ($request) {
                 $drf = Drf::where('email', $request->email)
+                ->where('conference_attendance', '9th_conference')
                     ->orderByDesc('created_at')
                     ->first();
 
@@ -125,6 +129,7 @@ class FormController extends Controller
             }
 
             $drf->other = $request->other;
+            $drf->areas_of_interest = $request->areas_of_interest;
 
             $drf->experience = $request->experience;
 
@@ -141,6 +146,8 @@ class FormController extends Controller
                 $drf->conference = 'NO';
                 $drf->types = null;
             }
+
+            $drf->conference_attendance = '9th_conference';
  
                 $drf->save();
  
@@ -172,6 +179,7 @@ class FormController extends Controller
         ]);
 
         $drf = Drf::where('email', $request->email)
+        ->where('conference_attendance', '9th_conference')
             ->orderByDesc('created_at')
             ->first();
 
@@ -182,14 +190,6 @@ class FormController extends Controller
         }
 
         $areas = $drf->areas ? array_values(array_filter(array_map('trim', explode(',', $drf->areas)))) : [];
-        $types = $drf->types ? array_values(array_filter(array_map('trim', explode(',', $drf->types)))) : [];
-
-        $conferenceValue = strtoupper($drf->conference ?? '');
-        $isPresenting = $conferenceValue === 'YES' || (!empty($types) && $conferenceValue !== 'NO') ? 'YES' : 'NO';
-
-        if ($isPresenting === 'YES' && empty($types) && $conferenceValue && $conferenceValue !== 'YES' && $conferenceValue !== 'NO') {
-            $types = array_values(array_filter(array_map('trim', explode(',', $drf->conference))));
-        }
 
         return $this->success('DRF record found', 200, [
             'exists' => true,
@@ -209,10 +209,11 @@ class FormController extends Controller
                 'mobile_no' => $drf->phone_no,
                 'email' => $drf->email,
                 'area_of_work' => $areas,
+                'areas_of_interest' => $drf->areas_of_interest,
                 'other_work_area' => $drf->other,
                 'teaching_experience' => $drf->experience,
-                'is_presenting' => $isPresenting,
-                'presentation_type' => $types,
+                'is_presenting' => '',
+                'presentation_type' => [],
             ],
         ]);
     }
@@ -224,8 +225,8 @@ class FormController extends Controller
         ]);
 
         $drf = Drf::findOrFail($validated['drf_id']);
-
-        if ($drf->payment_status === 'paid') {
+        
+        if ($drf->payment_status === 'paid' && $drf->conference_attendance === '9th_conference') {
             return response()->json([
                 'status' => false,
                 'message' => 'Payment has already been completed for this registration.',
@@ -362,6 +363,35 @@ class FormController extends Controller
         $drf->payment_status = 'paid';
         $drf->payment_id = $validated['razorpay_payment_id'];
         $drf->save();
+
+        $paidAt = now();
+        $invoiceNumber = sprintf('AINET-DRF-%06d', $drf->id);
+        $amountRupees = $this->calculateDrfAmount($drf);
+
+        try {
+            $pdf = Pdf::loadView('pdf.drf-invoice', [
+                'drf' => $drf,
+                'invoiceNumber' => $invoiceNumber,
+                'paidAt' => $paidAt,
+                'paymentId' => $validated['razorpay_payment_id'],
+                'orderId' => $validated['razorpay_order_id'],
+                'amount' => $amountRupees,
+            ]);
+
+            $pdfData = $pdf->output();
+
+            Mail::send(new DrfPaymentReceiptMail(
+                $drf,
+                $invoiceNumber,
+                $amountRupees,
+                $paidAt,
+                $validated['razorpay_payment_id'],
+                $validated['razorpay_order_id'],
+                $pdfData
+            ));
+        } catch (\Throwable $mailException) {
+            report($mailException);
+        }
 
         return response()->json([
             'status' => true,

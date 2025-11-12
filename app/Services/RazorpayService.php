@@ -17,8 +17,8 @@ class RazorpayService
 
     public function __construct()
     {
-        $this->keyId = "rzp_live_Rdf4DeHJQIk0Wz";
-        $this->keySecret = "SMWAgRIif0TEeClV9ygiTzgS";
+        $this->keyId = "rzp_test_ReVEXzQp1I8sQD";
+        $this->keySecret = "BL7qIUzXdZIy8gh7jpRcov1i";
 
         if (!$this->keyId || !$this->keySecret) {
             throw new RuntimeException('Razorpay credentials are not configured.');

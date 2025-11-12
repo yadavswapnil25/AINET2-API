@@ -10,7 +10,7 @@ class Drf extends Model
     protected $fillable = [
         'member', 'name', 'gender', 'age', 'institution',
         'address', 'city', 'pincode', 'state', 'country_code', 'phone_no', 'email',
-        'areas', 'other', 'experience', 'conference', 'types','you_are_register_as','pre_title',
+        'areas', 'areas_of_interest', 'other', 'experience', 'conference', 'conference_attendance', 'types','you_are_register_as','pre_title',
         'payment_status', 'payment_id', 'razorpay_order_id'
     ];
  
