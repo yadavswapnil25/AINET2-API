@@ -189,12 +189,34 @@ class AdminController extends Controller
             $sortBy = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
             $conferenceFilter = $request->get('conference_filter', '9th_conference'); // Default to 9th conference
+            $paymentStatusFilter = $request->get('payment_status'); // Payment status filter
 
             $query = Drf::query();
 
             // Filter by conference attendance (default: 9th_conference, or 'all' for all records)
             if ($conferenceFilter !== 'all') {
                 $query->where('conference_attendance', $conferenceFilter);
+            }
+
+            // Filter by payment status
+            if ($paymentStatusFilter) {
+                if ($paymentStatusFilter === 'paid') {
+                    // Paid: payment_status is 'paid' or 'success'
+                    $query->where(function($q) {
+                        $q->where('payment_status', 'paid')
+                          ->orWhere('payment_status', 'success');
+                    });
+                } elseif ($paymentStatusFilter === 'unpaid') {
+                    // Unpaid: payment_status is 'unpaid' or 'failed' or null
+                    $query->where(function($q) {
+                        $q->where('payment_status', 'unpaid')
+                          ->orWhere('payment_status', 'failed')
+                          ->orWhereNull('payment_status');
+                    });
+                } elseif ($paymentStatusFilter === 'pending') {
+                    // Pending: payment_status is 'pending'
+                    $query->where('payment_status', 'pending');
+                }
             }
 
             // Search functionality
@@ -286,17 +308,13 @@ class AdminController extends Controller
             
             // Normalize age field - convert empty strings to null for validation
             // Age can be a string (like "41-50" for age ranges) or a number
+            // Always keep as string to match validation rule
             if (isset($data['age'])) {
                 if ($data['age'] === '' || $data['age'] === 'null') {
                     $data['age'] = null;
                 } else {
-                    // Keep as string if it contains non-numeric characters (like ranges "41-50")
-                    // Otherwise convert numeric strings to integer
-                    if (is_numeric($data['age']) && strpos((string)$data['age'], '-') === false) {
-                        $data['age'] = (int)$data['age'];
-                    } else {
-                        $data['age'] = (string)$data['age'];
-                    }
+                    // Always convert to string to match validation rule
+                    $data['age'] = (string)$data['age'];
                 }
             }
             
@@ -352,8 +370,8 @@ class AdminController extends Controller
             
             foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
-                    // Age can be a string (for ranges like "41-50") or integer
-                    // Keep it as is since we already normalized it above
+                    // Age is always kept as string (for ranges like "41-50" or single values like "10")
+                    // Already normalized above to ensure it's a string
                     $updateData[$field] = $data[$field];
                 }
             }
@@ -503,6 +521,7 @@ class AdminController extends Controller
             $startDate = $request->get('start_date');
             $endDate = $request->get('end_date');
             $conferenceFilter = $request->get('conference_filter', '9th_conference'); // Default to 9th conference
+            $paymentStatusFilter = $request->get('payment_status'); // Payment status filter
             $selectedIds = $request->get('selected_ids'); // Array of selected IDs to export
 
             $query = Drf::query();
@@ -518,6 +537,27 @@ class AdminController extends Controller
                 // Filter by conference attendance (default: 9th_conference, or 'all' for all records)
                 if ($conferenceFilter !== 'all') {
                     $query->where('conference_attendance', $conferenceFilter);
+                }
+
+                // Filter by payment status
+                if ($paymentStatusFilter) {
+                    if ($paymentStatusFilter === 'paid') {
+                        // Paid: payment_status is 'paid' or 'success'
+                        $query->where(function($q) {
+                            $q->where('payment_status', 'paid')
+                              ->orWhere('payment_status', 'success');
+                        });
+                    } elseif ($paymentStatusFilter === 'unpaid') {
+                        // Unpaid: payment_status is 'unpaid' or 'failed' or null
+                        $query->where(function($q) {
+                            $q->where('payment_status', 'unpaid')
+                              ->orWhere('payment_status', 'failed')
+                              ->orWhereNull('payment_status');
+                        });
+                    } elseif ($paymentStatusFilter === 'pending') {
+                        // Pending: payment_status is 'pending'
+                        $query->where('payment_status', 'pending');
+                    }
                 }
 
                 if ($search) {
@@ -1268,6 +1308,40 @@ class AdminController extends Controller
     public function getUserStats(Request $request)
     {
         try {
+            // Get all users with membership ID
+            $membersWithId = User::whereNotNull('m_id')
+                ->where(function($q) {
+                    $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+                })
+                ->get();
+
+            // Calculate active and inactive members based on expiry
+            $activeMembers = 0;
+            $inactiveMembers = 0;
+            $now = now();
+
+            foreach ($membersWithId as $user) {
+                // Calculate expiry date: member_date + addMonths
+                // Use member_date if available, otherwise fallback to created_at
+                $memberDate = $user->member_date ?? $user->created_at;
+                $addMonths = $user->addMonths ?? 12; // Default to 12 months if not set
+                
+                // Calculate expiry date: add months and set to last day of that month with original time
+                $expiryDate = $memberDate->copy()->addMonths($addMonths);
+                // Get the last day of the expiry month
+                $lastDayOfMonth = $expiryDate->copy()->endOfMonth()->day;
+                // Set to last day of month but keep original time
+                $expiryDate = $expiryDate->setDate($expiryDate->year, $expiryDate->month, $lastDayOfMonth)
+                    ->setTime($memberDate->hour, $memberDate->minute, $memberDate->second);
+                
+                // Check if membership is still valid
+                if ($now->lessThanOrEqualTo($expiryDate)) {
+                    $activeMembers++;
+                } else {
+                    $inactiveMembers++;
+                }
+            }
+
             $stats = [
                 'total_users' => User::count(),
                 'users_by_month' => User::selectRaw('DATE_FORMAT(created_at, "%Y-%m") as month, COUNT(*) as count')
@@ -1293,6 +1367,8 @@ class AdminController extends Controller
                 'male_members' => User::where('gender', 'Male')->count(),
                 'female_members' => User::where('gender', 'Female')->count(),
                 'blocked_members' => User::where('status', 0)->count(),
+                'active_members' => $activeMembers,
+                'inactive_members' => $inactiveMembers,
             ];
 
             return $this->success('User statistics retrieved successfully', 200, [
@@ -2112,6 +2188,149 @@ class AdminController extends Controller
 
         } catch (\Throwable $e) {
             return $this->error('Failed to export membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Update membership record (User)
+     */
+    public function updateMembership(Request $request, $id)
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->error('Membership record not found', 404, [
+                    'message' => 'No membership record found with the given ID'
+                ]);
+            }
+
+            // Prevent updating admin users through membership management
+            if ($user->role_id === 1) {
+                return $this->error('Cannot update admin user', 400, [
+                    'message' => 'Admin users cannot be updated through membership management'
+                ]);
+            }
+
+            // Prepare data for validation
+            $data = $request->all();
+
+            // Normalize date fields
+            if (isset($data['member_date']) && ($data['member_date'] === '' || $data['member_date'] === 'null')) {
+                $data['member_date'] = null;
+            }
+            if (isset($data['dob']) && ($data['dob'] === '' || $data['dob'] === 'null')) {
+                $data['dob'] = null;
+            }
+
+            // Normalize numeric fields
+            if (isset($data['addMonths'])) {
+                if ($data['addMonths'] === '' || $data['addMonths'] === 'null') {
+                    $data['addMonths'] = null;
+                } else {
+                    $data['addMonths'] = is_numeric($data['addMonths']) ? (int)$data['addMonths'] : null;
+                }
+            }
+            if (isset($data['teaching_exp'])) {
+                if ($data['teaching_exp'] === '' || $data['teaching_exp'] === 'null') {
+                    $data['teaching_exp'] = null;
+                } else {
+                    // Convert to string if numeric, otherwise keep as is
+                    $data['teaching_exp'] = is_numeric($data['teaching_exp']) ? (string)$data['teaching_exp'] : $data['teaching_exp'];
+                }
+            }
+
+            // Normalize boolean fields
+            if (isset($data['has_member_any'])) {
+                $data['has_member_any'] = filter_var($data['has_member_any'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            }
+            if (isset($data['has_newsletter'])) {
+                $data['has_newsletter'] = filter_var($data['has_newsletter'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            }
+
+            // Normalize JSON fields
+            if (isset($data['qualification']) && is_string($data['qualification'])) {
+                $decoded = json_decode($data['qualification'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $data['qualification'] = $decoded;
+                }
+            }
+            if (isset($data['area_of_work']) && is_string($data['area_of_work'])) {
+                $decoded = json_decode($data['area_of_work'], true);
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $data['area_of_work'] = $decoded;
+                }
+            }
+
+            $validator = Validator::make($data, [
+                'ref' => 'sometimes|nullable|string|max:255',
+                'm_id' => 'sometimes|nullable|string|max:255',
+                'first_name' => 'sometimes|nullable|string|max:255',
+                'last_name' => 'sometimes|nullable|string|max:255',
+                'name' => 'sometimes|nullable|string|max:255',
+                'email' => 'sometimes|nullable|email|max:255|unique:users,email,' . $id,
+                'mobile' => 'sometimes|nullable|string|max:20',
+                'whatsapp_no' => 'sometimes|nullable|string|max:20',
+                'gender' => 'sometimes|nullable|string|max:50',
+                'dob' => 'sometimes|nullable|date',
+                'title' => 'sometimes|nullable|string|max:50',
+                'address' => 'sometimes|nullable|string',
+                'state' => 'sometimes|nullable|string|max:255',
+                'district' => 'sometimes|nullable|string|max:255',
+                'pin' => 'sometimes|nullable|string|max:20',
+                'teaching_exp' => 'sometimes|nullable|string|max:255',
+                'qualification' => 'sometimes|nullable',
+                'area_of_work' => 'sometimes|nullable',
+                'membership_type' => 'sometimes|nullable|string|max:50',
+                'membership_plan' => 'sometimes|nullable|string|max:50',
+                'has_member_any' => 'sometimes|nullable|boolean',
+                'name_association' => 'sometimes|nullable|string|max:255',
+                'expectation' => 'sometimes|nullable|string',
+                'has_newsletter' => 'sometimes|nullable|boolean',
+                'name_institution' => 'sometimes|nullable|string|max:255',
+                'address_institution' => 'sometimes|nullable|string',
+                'type_institution' => 'sometimes|nullable|string|max:255',
+                'other_institution' => 'sometimes|nullable|string|max:255',
+                'contact_person' => 'sometimes|nullable|string|max:255',
+                'addMonths' => 'sometimes|nullable|integer|min:1',
+                'member_date' => 'sometimes|nullable|date',
+                'status' => 'sometimes|nullable|integer|in:0,1',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            // Prepare update data - only include fields that are present in the request
+            $updateData = [];
+            $allowedFields = [
+                'ref', 'm_id', 'first_name', 'last_name', 'name', 'email', 'mobile', 'whatsapp_no',
+                'gender', 'dob', 'title', 'address', 'state', 'district', 'pin',
+                'teaching_exp', 'qualification', 'area_of_work',
+                'membership_type', 'membership_plan',
+                'has_member_any', 'name_association', 'expectation', 'has_newsletter',
+                'name_institution', 'address_institution', 'type_institution', 'other_institution', 'contact_person',
+                'addMonths', 'member_date', 'status'
+            ];
+            
+            foreach ($allowedFields as $field) {
+                if (isset($data[$field])) {
+                    $updateData[$field] = $data[$field];
+                }
+            }
+
+            $user->update($updateData);
+
+            return $this->success('Membership record updated successfully', 200, [
+                'membership' => $user->fresh()
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update membership record', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())
