@@ -2164,6 +2164,77 @@ class AdminController extends Controller
     }
 
     /**
+     * Bulk delete membership records (soft delete)
+     */
+    public function bulkDeleteMembership(Request $request)
+    {
+        try {
+            $incomingIds = $request->input('ids', $request->input('data.ids', []));
+
+            $validator = Validator::make(['ids' => $incomingIds], [
+                'ids' => 'required|array|min:1',
+                'ids.*' => 'integer'
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $ids = collect($incomingIds)
+                ->map(fn ($id) => is_numeric($id) ? (int) $id : null)
+                ->filter(fn ($id) => !is_null($id))
+                ->unique()
+                ->values();
+
+            // Get existing users and filter out admin users and current user
+            $currentUserId = $request->user()->id;
+            $existingUsers = User::whereIn('id', $ids)
+                ->where(function($q) {
+                    $q->where('role_id', '!=', 1)->orWhereNull('role_id');
+                })
+                ->where('id', '!=', $currentUserId)
+                ->get();
+
+            $existingIds = $existingUsers->pluck('id');
+            $missingIds = $ids->diff($existingIds)->values();
+            
+            // Check for admin users or current user in the list
+            $adminOrCurrentUserIds = $ids->filter(function($id) use ($currentUserId) {
+                $user = User::find($id);
+                return $user && ($user->role_id === 1 || $user->id === $currentUserId);
+            })->values();
+
+            if ($existingIds->isEmpty()) {
+                return $this->success('No matching membership records found', 200, [
+                    'deleted_count' => 0,
+                    'deleted_ids' => [],
+                    'missing_ids' => $missingIds,
+                    'skipped_ids' => $adminOrCurrentUserIds,
+                    'message' => 'No membership records were deleted. Some IDs may not exist, be admin users, or be your own account.'
+                ]);
+            }
+
+            // Soft delete the memberships
+            $deletedCount = User::whereIn('id', $existingIds)->delete();
+
+            return $this->success('Membership records deleted successfully', 200, [
+                'deleted_count' => $deletedCount,
+                'deleted_ids' => $existingIds->values(),
+                'missing_ids' => $missingIds,
+                'skipped_ids' => $adminOrCurrentUserIds,
+                'message' => "{$deletedCount} membership record(s) have been moved to trash"
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete membership records', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Restore soft deleted membership record
      */
     public function restoreMembership(Request $request, $id)

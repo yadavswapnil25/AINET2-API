@@ -137,6 +137,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/memberships/export', [AdminController::class, 'exportMembership']);
         Route::get('/memberships/trashed', [AdminController::class, 'getTrashedMemberships']);
         Route::delete('/memberships/{id}', [AdminController::class, 'deleteMembership']);
+        Route::post('/memberships/bulk', [AdminController::class, 'bulkDeleteMembership']);
         Route::post('/memberships/{id}/restore', [AdminController::class, 'restoreMembership']);
     });
 });
