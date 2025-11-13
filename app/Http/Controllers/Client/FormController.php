@@ -365,7 +365,7 @@ class FormController extends Controller
         $drf->save();
 
         $paidAt = now();
-        $invoiceNumber = sprintf('AINET-DRF-%06d', $drf->id);
+        $invoiceNumber = sprintf('AINET-DRF26-%06d', $drf->id);
         $amountRupees = $this->calculateDrfAmount($drf);
 
         try {
