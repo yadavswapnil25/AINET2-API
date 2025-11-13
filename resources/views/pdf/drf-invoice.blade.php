@@ -118,17 +118,22 @@
                 <tr>
                     <td>
                         Delegate Registration Fee - {{ $drf->you_are_register_as }}
-                        @if ($drf->member === 'Yes')
-                            <br><small>Includes AINET Member 20% discount (if applicable)</small>
-                        @endif
                     </td>
-                    <td class="text-right">{{ number_format($amount, 2) }}</td>
+                    <td class="text-right">{{ number_format($originalAmount ?? $amount, 2) }}</td>
                 </tr>
+                @if(isset($discountAmount) && $discountAmount > 0)
+                <tr>
+                    <td>
+                        AINET Member Discount ({{ number_format($discountPercentage ?? 0, 0) }}%)
+                    </td>
+                    <td class="text-right" style="color: #10b981;">- {{ number_format($discountAmount, 2) }}</td>
+                </tr>
+                @endif
             </tbody>
             <tfoot>
                 <tr>
-                    <th>Total</th>
-                    <th class="text-right amount">₹ {{ number_format($amount, 2) }}</th>
+                    <th>Total Amount Paid</th>
+                    <th class="text-right amount">  {{ number_format($amount, 2) }}</th>
                 </tr>
             </tfoot>
         </table>

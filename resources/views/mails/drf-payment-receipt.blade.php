@@ -32,9 +32,19 @@
                         <td style="padding: 8px 12px; background-color: #f8fafc; font-weight: 600;">Registration Type</td>
                         <td style="padding: 8px 12px; background-color: #f8fafc;">{{ $drf->you_are_register_as }}</td>
                     </tr>
+                    @if($discountAmount > 0)
+                    <tr>
+                        <td style="padding: 8px 12px; background-color: #ffffff; font-weight: 600;">Original Amount</td>
+                        <td style="padding: 8px 12px; background-color: #ffffff;">₹ {{ number_format($originalAmount, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; background-color: #f8fafc; font-weight: 600;">Member Discount ({{ number_format($discountPercentage, 0) }}%)</td>
+                        <td style="padding: 8px 12px; background-color: #f8fafc; color: #10b981;">- ₹ {{ number_format($discountAmount, 2) }}</td>
+                    </tr>
+                    @endif
                     <tr>
                         <td style="padding: 8px 12px; background-color: #ffffff; font-weight: 600;">Amount Paid</td>
-                        <td style="padding: 8px 12px; background-color: #ffffff;">₹ {{ number_format($amount, 2) }}</td>
+                        <td style="padding: 8px 12px; background-color: #ffffff; font-weight: 700; font-size: 16px;">₹ {{ number_format($amount, 2) }}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; background-color: #f8fafc; font-weight: 600;">Razorpay Payment ID</td>

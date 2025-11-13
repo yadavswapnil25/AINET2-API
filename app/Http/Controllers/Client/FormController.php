@@ -17,6 +17,7 @@ use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mails\DrfPaymentReceiptMail;
 
 class FormController extends Controller
@@ -133,6 +134,21 @@ class FormController extends Controller
 
             $drf->experience = $request->experience;
 
+            // Link to user if member and membership_id is provided
+            if ($request->member === 'Yes' && !empty($request->membership_id)) {
+                $membershipId = trim($request->membership_id);
+                $user = User::whereRaw("TRIM(m_id) = ?", [$membershipId])
+                    ->orWhere('m_id', 'LIKE', $membershipId . '%')
+                    ->orWhere('m_id', $membershipId)
+                    ->first();
+                
+                if ($user) {
+                    $drf->user_id = $user->id;
+                }
+            } else {
+                $drf->user_id = null;
+            }
+
             if ($drf->payment_status !== 'paid') {
                 $drf->payment_status = 'pending';
                 $drf->payment_id = null;
@@ -222,6 +238,7 @@ class FormController extends Controller
     {
         $validated = $request->validate([
             'drf_id' => 'required|integer|exists:drves,id',
+            'membership_id' => 'nullable|string',
         ]);
 
         $drf = Drf::findOrFail($validated['drf_id']);
@@ -233,7 +250,57 @@ class FormController extends Controller
             ], 409);
         }
 
-        $amountRupees = $this->calculateDrfAmount($drf);
+        // Check for membership discount and link user_id
+        $discountPercentage = 0;
+        $membershipValid = false;
+        $originalAmount = 0;
+        
+        if (!empty($validated['membership_id'])) {
+            $membershipId = trim($validated['membership_id']);
+            $user = User::whereRaw("TRIM(m_id) = ?", [$membershipId])
+                ->orWhere('m_id', 'LIKE', $membershipId . '%')
+                ->orWhere('m_id', $membershipId)
+                ->first();
+
+            if ($user) {
+                // Link user_id to DRF if not already linked
+                if (!$drf->user_id) {
+                    $drf->user_id = $user->id;
+                    $drf->save();
+                }
+
+                // Use member_date if available, otherwise fallback to created_at
+                $memberDate = $user->member_date ?? $user->created_at;
+                $addMonths = $user->addMonths ?? 12;
+                // Calculate expiry: add months, set to last day of that month with original time
+                $expiryDate = $memberDate->copy()->addMonths($addMonths);
+                $lastDayOfMonth = $expiryDate->copy()->endOfMonth()->day;
+                $expiryDate = $expiryDate->setDate($expiryDate->year, $expiryDate->month, $lastDayOfMonth)
+                    ->setTime($memberDate->hour, $memberDate->minute, $memberDate->second);
+                
+                if (now()->lessThanOrEqualTo($expiryDate)) {
+                    $membershipValid = true;
+                    $discountPercentage = 10;
+                }
+            }
+        }
+
+        // Calculate original amount first (without discount)
+        $originalAmount = $this->calculateDrfAmount($drf, 0);
+        // Calculate final amount with discount
+        $amountRupees = $this->calculateDrfAmount($drf, $discountPercentage);
+        
+        // Debug logging
+        Log::info('DRF Amount Calculation', [
+            'drf_id' => $drf->id,
+            'membership_id' => $validated['membership_id'] ?? null,
+            'membership_valid' => $membershipValid,
+            'discount_percentage' => $discountPercentage,
+            'original_amount' => $originalAmount,
+            'discounted_amount' => $amountRupees,
+            'amount_in_paise' => $amountRupees * 100,
+        ]);
+        
         if ($amountRupees <= 0) {
             return response()->json([
                 'status' => false,
@@ -243,12 +310,16 @@ class FormController extends Controller
 
         try {
             $order = $this->razorpay->createOrder(
-                $amountRupees,
+                $amountRupees, // This should be the discounted amount (e.g., 1080 for 1200 - 10%)
                 'INR',
                 'DRF-' . $drf->id . '-' . now()->timestamp,
                 [
                     'drf_id' => (string) $drf->id,
                     'email' => $drf->email,
+                    'membership_id' => $validated['membership_id'] ?? null,
+                    'discount_applied' => $membershipValid ? '10%' : '0%',
+                    'original_amount' => (string) $originalAmount,
+                    'discounted_amount' => (string) $amountRupees,
                 ]
             );
 
@@ -256,14 +327,35 @@ class FormController extends Controller
             $drf->payment_status = 'pending';
             $drf->save();
 
+            // Get the amount from Razorpay order response (already in paise)
+            // The order was created with $amountRupees (discounted amount), so this should match
+            $razorpayOrderAmount = (int) ($order['amount'] ?? ($amountRupees * 100));
+            
+            // Log for debugging (remove in production)
+            Log::info('DRF Order Created', [
+                'drf_id' => $drf->id,
+                'membership_id' => $validated['membership_id'] ?? null,
+                'membership_valid' => $membershipValid,
+                'discount_percentage' => $discountPercentage,
+                'original_amount' => $originalAmount,
+                'discounted_amount' => $amountRupees,
+                'razorpay_order_amount_paise' => $razorpayOrderAmount,
+                'razorpay_order_amount_rupees' => $razorpayOrderAmount / 100,
+            ]);
+            
             return response()->json([
                 'status' => true,
                 'message' => 'Order created successfully',
                 'data' => [
                     'order' => $order,
-                    'amount' => (int) ($order['amount'] ?? ($amountRupees * 100)),
+                    'amount' => $razorpayOrderAmount, // Amount in paise (already discounted)
                     'currency' => $order['currency'] ?? 'INR',
                     'key' => env('RAZORPAY_KEY_ID', null),
+                    'discount_applied' => $membershipValid,
+                    'discount_percentage' => $discountPercentage,
+                    'original_amount' => $originalAmount,
+                    'discounted_amount' => $amountRupees, // Final amount to pay in rupees
+                    'amount_in_rupees' => $amountRupees, // For clarity
                 ],
             ]);
         } catch (RuntimeException $e) {
@@ -312,8 +404,6 @@ class FormController extends Controller
             ], 422);
         }
 
-        $amountPaise = (int) round($this->calculateDrfAmount($drf) * 100);
-
         try {
             $payment = $this->razorpay->fetchPayment($validated['razorpay_payment_id']);
         } catch (RuntimeException $e) {
@@ -332,6 +422,21 @@ class FormController extends Controller
             ], 422);
         }
 
+        // Get actual payment amount from Razorpay (in paise)
+        $actualPaymentAmountPaise = (int) ($payment['amount'] ?? 0);
+        $actualPaymentAmountRupees = $actualPaymentAmountPaise / 100;
+
+        // Calculate original amount (without discount)
+        $originalAmountRupees = $this->calculateDrfAmount($drf, 0);
+        
+        // Check if discount was applied
+        $discountAmount = 0;
+        $discountPercentage = 0;
+        if ($actualPaymentAmountRupees < $originalAmountRupees) {
+            $discountAmount = $originalAmountRupees - $actualPaymentAmountRupees;
+            $discountPercentage = round(($discountAmount / $originalAmountRupees) * 100, 2);
+        }
+
         if (!in_array($paymentStatus, ['captured', 'authorized'], true)) {
             return response()->json([
                 'status' => false,
@@ -342,7 +447,8 @@ class FormController extends Controller
 
         if ($paymentStatus === 'authorized') {
             try {
-                $payment = $this->razorpay->capturePayment($validated['razorpay_payment_id'], $amountPaise);
+                // Use actual payment amount for capture
+                $payment = $this->razorpay->capturePayment($validated['razorpay_payment_id'], $actualPaymentAmountPaise);
                 $paymentStatus = $payment['status'] ?? null;
             } catch (RuntimeException $e) {
                 return response()->json([
@@ -366,7 +472,9 @@ class FormController extends Controller
 
         $paidAt = now();
         $invoiceNumber = sprintf('AINET-DRF26-%06d', $drf->id);
-        $amountRupees = $this->calculateDrfAmount($drf);
+        
+        // Use actual payment amount (discounted amount)
+        $amountRupees = $actualPaymentAmountRupees;
 
         try {
             $pdf = Pdf::loadView('pdf.drf-invoice', [
@@ -376,6 +484,9 @@ class FormController extends Controller
                 'paymentId' => $validated['razorpay_payment_id'],
                 'orderId' => $validated['razorpay_order_id'],
                 'amount' => $amountRupees,
+                'originalAmount' => $originalAmountRupees,
+                'discountAmount' => $discountAmount,
+                'discountPercentage' => $discountPercentage,
             ]);
 
             $pdfData = $pdf->output();
@@ -387,7 +498,10 @@ class FormController extends Controller
                 $paidAt,
                 $validated['razorpay_payment_id'],
                 $validated['razorpay_order_id'],
-                $pdfData
+                $pdfData,
+                $originalAmountRupees,
+                $discountAmount,
+                $discountPercentage
             ));
         } catch (\Throwable $mailException) {
             report($mailException);
@@ -399,7 +513,7 @@ class FormController extends Controller
         ]);
     }
 
-    protected function calculateDrfAmount(Drf $drf): float
+    protected function calculateDrfAmount(Drf $drf, float $discountPercentage = 0): float
     {
         $delegateType = trim((string) $drf->you_are_register_as);
         $now = now();
@@ -408,19 +522,25 @@ class FormController extends Controller
 
         $delegateTypeLower = strtolower($delegateType);
 
+        $baseAmount = 0.0;
+
         if (str_contains($delegateTypeLower, 'overseas')) {
-            return 5000.0;
+            $baseAmount = 5000.0;
+        } elseif (str_contains($delegateTypeLower, 'research') || str_contains($delegateTypeLower, 'student')) {
+            $baseAmount = $isEarlyBird ? 1200.0 : 2000.0;
+        } elseif (str_contains($delegateTypeLower, 'other')) {
+            $baseAmount = $isEarlyBird ? 2500.0 : 3500.0;
+        } else {
+            $baseAmount = $isEarlyBird ? 2500.0 : 3500.0;
         }
 
-        if (str_contains($delegateTypeLower, 'research') || str_contains($delegateTypeLower, 'student')) {
-            return $isEarlyBird ? 1200.0 : 2000.0;
+        // Apply discount if applicable
+        if ($discountPercentage > 0) {
+            $discountAmount = ($baseAmount * $discountPercentage) / 100;
+            return round($baseAmount - $discountAmount, 2);
         }
 
-        if (str_contains($delegateTypeLower, 'other')) {
-            return $isEarlyBird ? 2500.0 : 3500.0;
-        }
-
-        return $isEarlyBird ? 2500.0 : 3500.0;
+        return $baseAmount;
     }
 
     /**
@@ -472,6 +592,87 @@ class FormController extends Controller
             return $this->error('Validation failed', 422, $e->errors());
         } catch (\Throwable $e) {
             return $this->error('Unable to check user', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Validate membership ID and check if discount is applicable
+     */
+    public function validateMembershipForDiscount(Request $request): JsonResponse
+    {
+        try {
+            $request->validate([
+                'membership_id' => 'required|string'
+            ]);
+
+            $membershipId = trim($request->membership_id);
+            
+            // Find user by membership ID
+            $user = User::whereRaw("TRIM(m_id) = ?", [$membershipId])
+                ->orWhere('m_id', 'LIKE', $membershipId . '%')
+                ->orWhere('m_id', $membershipId)
+                ->first();
+
+            if (!$user) {
+                return $this->success('Membership not found', 200, [
+                    'valid' => false,
+                    'discount_applicable' => false,
+                    'message' => 'Membership ID not found',
+                ]);
+            }
+
+            // Check if payment is completed
+            // if ($user->payment_status !== 'paid') {
+            //     return $this->success('Membership payment pending', 200, [
+            //         'valid' => false,
+            //         'discount_applicable' => false,
+            //         'message' => 'Membership payment is pending',
+            //     ]);
+            // }
+
+            // Calculate expiry date: member_date + addMonths
+            // Use member_date if available, otherwise fallback to created_at
+            $memberDate = $user->member_date ?? $user->created_at;
+            $addMonths = $user->addMonths ?? 12; // Default to 12 months if not set
+            
+            // Calculate expiry date: add months and set to last day of that month with original time
+            $expiryDate = $memberDate->copy()->addMonths($addMonths);
+            // Get the last day of the expiry month
+            $lastDayOfMonth = $expiryDate->copy()->endOfMonth()->day;
+            // Set to last day of month but keep original time
+            $expiryDate = $expiryDate->setDate($expiryDate->year, $expiryDate->month, $lastDayOfMonth)
+                ->setTime($memberDate->hour, $memberDate->minute, $memberDate->second);
+            
+            // Check if membership is still valid
+            $isValid = now()->lessThanOrEqualTo($expiryDate);
+            
+            if (!$isValid) {
+                return $this->success('Membership expired', 200, [
+                    'valid' => false,
+                    'discount_applicable' => false,
+                    'message' => 'Your membership has expired',
+                    'expiry_date' => $expiryDate->format('Y-m-d H:i:s'),
+                ]);
+            }
+
+            // Membership is valid - discount applicable
+            return $this->success('Membership valid', 200, [
+                'valid' => true,
+                'discount_applicable' => true,
+                'discount_percentage' => 10,
+                'message' => '10% discount will be applied to your registration fee',
+                'expiry_date' => $expiryDate->format('Y-m-d H:i:s'),
+                'member_name' => $user->name,
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->error('Validation failed', 422, $e->errors());
+        } catch (\Throwable $e) {
+            return $this->error('Unable to validate membership', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())

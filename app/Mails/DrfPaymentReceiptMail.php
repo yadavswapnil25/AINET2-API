@@ -25,6 +25,12 @@ class DrfPaymentReceiptMail extends MailLayout
 
     protected string $pdfData;
 
+    protected float $originalAmount;
+
+    protected float $discountAmount;
+
+    protected float $discountPercentage;
+
     public function __construct(
         Drf $drf,
         string $invoiceNumber,
@@ -32,7 +38,10 @@ class DrfPaymentReceiptMail extends MailLayout
         Carbon $paidAt,
         string $paymentId,
         string $orderId,
-        string $pdfData
+        string $pdfData,
+        float $originalAmount = 0,
+        float $discountAmount = 0,
+        float $discountPercentage = 0
     ) {
         $this->drf = $drf;
         $this->invoiceNumber = $invoiceNumber;
@@ -41,6 +50,9 @@ class DrfPaymentReceiptMail extends MailLayout
         $this->paymentId = $paymentId;
         $this->orderId = $orderId;
         $this->pdfData = $pdfData;
+        $this->originalAmount = $originalAmount;
+        $this->discountAmount = $discountAmount;
+        $this->discountPercentage = $discountPercentage;
 
         parent::__construct();
     }
@@ -65,6 +77,9 @@ class DrfPaymentReceiptMail extends MailLayout
                 'paidAt' => $this->paidAt,
                 'paymentId' => $this->paymentId,
                 'orderId' => $this->orderId,
+                'originalAmount' => $this->originalAmount,
+                'discountAmount' => $this->discountAmount,
+                'discountPercentage' => $this->discountPercentage,
             ]
         );
     }

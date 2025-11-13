@@ -26,6 +26,7 @@ Route::get('/ainet2020drf/check',[FormController::class, 'getDrfByEmail']);
 Route::post('/ainet2020drf/payment/order',[FormController::class, 'createDrfOrder']);
 Route::post('/ainet2020drf/payment/confirm',[FormController::class, 'confirmDrfPayment']);
 Route::post('/check-user', [FormController::class, 'checkUserExists']);
+Route::post('/validate-membership-discount', [FormController::class, 'validateMembershipForDiscount']);
 
 // Public website endpoints
 Route::get('/banners', [AdminController::class, 'getWebsiteBanners']);

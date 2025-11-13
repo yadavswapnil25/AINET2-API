@@ -18,6 +18,7 @@ class StoreDrfRequest extends FormRequest
     {
         return [
             'member' => 'required|string',
+            'membership_id' => 'nullable|string',
             'name' => 'required|string',
             'gender' => 'required|string',
             'age' => 'required|integer|min:0',

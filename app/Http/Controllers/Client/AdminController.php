@@ -188,8 +188,14 @@ class AdminController extends Controller
             $search = $request->get('search');
             $sortBy = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
+            $conferenceFilter = $request->get('conference_filter', '9th_conference'); // Default to 9th conference
 
             $query = Drf::query();
+
+            // Filter by conference attendance (default: 9th_conference, or 'all' for all records)
+            if ($conferenceFilter !== 'all') {
+                $query->where('conference_attendance', $conferenceFilter);
+            }
 
             // Search functionality
             if ($search) {
@@ -275,24 +281,53 @@ class AdminController extends Controller
     public function updateDrf(Request $request, $id)
     {
         try {
-            $validator = Validator::make($request->all(), [
-                'member' => 'sometimes|string',
-                'name' => 'sometimes|string',
-                'gender' => 'sometimes|string',
-                'age' => 'sometimes|integer|min:0',
-                'institution' => 'sometimes|string',
-                'address' => 'sometimes|string',
-                'city' => 'sometimes|string',
-                'pincode' => 'sometimes|string',
-                'state' => 'sometimes|string',
-                'country_code' => 'sometimes|string',
-                'phone_no' => 'sometimes|string',
-                'email' => 'sometimes|email',
-                'areas' => 'sometimes|string',
-                'experience' => 'sometimes|string',
-                'conference' => 'sometimes|string',
-                'you_are_register_as' => 'sometimes|string',
-                'pre_title' => 'sometimes|string',
+            // Prepare data for validation - convert empty strings to null
+            $data = $request->all();
+            
+            // Normalize age field - convert empty strings to null for validation
+            // Age can be a string (like "41-50" for age ranges) or a number
+            if (isset($data['age'])) {
+                if ($data['age'] === '' || $data['age'] === 'null') {
+                    $data['age'] = null;
+                } else {
+                    // Keep as string if it contains non-numeric characters (like ranges "41-50")
+                    // Otherwise convert numeric strings to integer
+                    if (is_numeric($data['age']) && strpos((string)$data['age'], '-') === false) {
+                        $data['age'] = (int)$data['age'];
+                    } else {
+                        $data['age'] = (string)$data['age'];
+                    }
+                }
+            }
+            
+            // Normalize country_code - convert empty strings to null
+            if (isset($data['country_code'])) {
+                if ($data['country_code'] === '' || $data['country_code'] === 'null') {
+                    $data['country_code'] = null;
+                } else {
+                    $data['country_code'] = (string)$data['country_code'];
+                }
+            }
+
+            $validator = Validator::make($data, [
+                'member' => 'sometimes|nullable|string',
+                'name' => 'sometimes|nullable|string',
+                'gender' => 'sometimes|nullable|string',
+                'age' => 'sometimes|nullable|string', // Changed to string to accept age ranges like "41-50"
+                'institution' => 'sometimes|nullable|string',
+                'address' => 'sometimes|nullable|string',
+                'city' => 'sometimes|nullable|string',
+                'pincode' => 'sometimes|nullable|string',
+                'state' => 'sometimes|nullable|string',
+                'country_code' => 'sometimes|nullable|string',
+                'phone_no' => 'sometimes|nullable|string',
+                'email' => 'sometimes|nullable|email',
+                'areas' => 'sometimes|nullable|string',
+                'experience' => 'sometimes|nullable|string',
+                'conference' => 'sometimes|nullable|string',
+                'conference_attendance' => 'sometimes|nullable|string',
+                'you_are_register_as' => 'sometimes|nullable|string',
+                'pre_title' => 'sometimes|nullable|string',
             ]);
 
             if ($validator->fails()) {
@@ -307,11 +342,23 @@ class AdminController extends Controller
                 ]);
             }
 
-            $drf->update($request->only([
+            // Prepare update data - only include fields that are present in the request
+            $updateData = [];
+            $allowedFields = [
                 'member', 'name', 'gender', 'age', 'institution', 'address',
                 'city', 'pincode', 'state', 'country_code', 'phone_no', 'email',
-                'areas', 'experience', 'conference', 'you_are_register_as', 'pre_title'
-            ]));
+                'areas', 'experience', 'conference', 'conference_attendance', 'you_are_register_as', 'pre_title'
+            ];
+            
+            foreach ($allowedFields as $field) {
+                if (isset($data[$field])) {
+                    // Age can be a string (for ranges like "41-50") or integer
+                    // Keep it as is since we already normalized it above
+                    $updateData[$field] = $data[$field];
+                }
+            }
+
+            $drf->update($updateData);
 
             return $this->success('DRF record updated successfully', 200, [
                 'drf' => $drf->fresh()
@@ -455,27 +502,43 @@ class AdminController extends Controller
             $sortOrder = $request->get('sort_order', 'desc');
             $startDate = $request->get('start_date');
             $endDate = $request->get('end_date');
+            $conferenceFilter = $request->get('conference_filter', '9th_conference'); // Default to 9th conference
+            $selectedIds = $request->get('selected_ids'); // Array of selected IDs to export
 
             $query = Drf::query();
 
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('name', 'LIKE', "%{$search}%")
-                      ->orWhere('email', 'LIKE', "%{$search}%")
-                      ->orWhere('institution', 'LIKE', "%{$search}%")
-                      ->orWhere('member', 'LIKE', "%{$search}%");
-                });
-            }
+            // If specific IDs are selected, export only those records (ignore other filters)
+            if ($selectedIds && is_array($selectedIds) && count($selectedIds) > 0) {
+                $ids = array_filter(array_map('intval', $selectedIds));
+                if (count($ids) > 0) {
+                    $query->whereIn('id', $ids);
+                }
+            } else {
+                // Apply filters only when no specific IDs are selected
+                // Filter by conference attendance (default: 9th_conference, or 'all' for all records)
+                if ($conferenceFilter !== 'all') {
+                    $query->where('conference_attendance', $conferenceFilter);
+                }
 
-            if ($startDate && $endDate) {
-                $query->whereBetween('created_at', [
-                    $startDate . ' 00:00:00',
-                    $endDate . ' 23:59:59'
-                ]);
-            } elseif ($startDate) {
-                $query->where('created_at', '>=', $startDate . ' 00:00:00');
-            } elseif ($endDate) {
-                $query->where('created_at', '<=', $endDate . ' 23:59:59');
+                if ($search) {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('name', 'LIKE', "%{$search}%")
+                          ->orWhere('email', 'LIKE', "%{$search}%")
+                          ->orWhere('institution', 'LIKE', "%{$search}%")
+                          ->orWhere('member', 'LIKE', "%{$search}%");
+                    });
+                }
+
+                if ($startDate && $endDate) {
+                    $query->whereBetween('created_at', [
+                        $startDate . ' 00:00:00',
+                        $endDate . ' 23:59:59'
+                    ]);
+                } elseif ($startDate) {
+                    $query->where('created_at', '>=', $startDate . ' 00:00:00');
+                } elseif ($endDate) {
+                    $query->where('created_at', '<=', $endDate . ' 23:59:59');
+                }
             }
 
             $query->orderBy($sortBy, $sortOrder);

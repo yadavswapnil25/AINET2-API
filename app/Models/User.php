@@ -53,7 +53,8 @@ class User extends Authenticatable
         'type_institution',
         'other_institution',
         'contact_person',
-        'addMonths'
+        'addMonths',
+        'member_date'
     ];
 
     /**
@@ -78,6 +79,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role_id' => 'integer',
             'payment_status' => 'string',
+            'member_date' => 'datetime',
         ];
     }
 
