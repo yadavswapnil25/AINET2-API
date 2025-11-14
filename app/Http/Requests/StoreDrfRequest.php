@@ -21,7 +21,7 @@ class StoreDrfRequest extends FormRequest
             'membership_id' => 'nullable|string',
             'name' => 'required|string',
             'gender' => 'required|string',
-            'age' => 'required|integer|min:0',
+            'age' => 'required|string',
             'institution' => 'required|string',
             'address' => 'required|string',
             'city' => 'required|string',
