@@ -2151,8 +2151,12 @@ class AdminController extends Controller
                       ->orWhere('mobile', 'LIKE', "%{$search}%")
                       ->orWhere('m_id', 'LIKE', "%{$search}%")
                       ->orWhere('first_name', 'LIKE', "%{$search}%")
-                      ->orWhere('last_name', 'LIKE', "%{$search}%")
-                      ->orWhere('name_institution', 'LIKE', "%{$search}%");
+                      ->orWhere('last_name', 'LIKE', "%{$search}%");
+                    
+                    // Only search in name_institution if the column exists
+                    if (Schema::hasColumn('users', 'name_institution')) {
+                        $q->orWhere('name_institution', 'LIKE', "%{$search}%");
+                    }
                 });
             }
 
@@ -2189,7 +2193,11 @@ class AdminController extends Controller
                 'Cache-Control' => 'no-store, no-cache',
             ];
 
-            $columns = [
+            // Get existing columns in the users table
+            $existingColumns = Schema::getColumnListing('users');
+            
+            // Define all possible columns, but only include those that exist in the database
+            $allColumns = [
                 'id', 'ref', 'm_id', 'first_name', 'last_name', 'name', 'email', 'mobile', 'whatsapp_no',
                 'gender', 'dob', 'title', 'address', 'state', 'district', 'pin',
                 'qualification', 'area_of_work', 'teaching_exp',
@@ -2198,6 +2206,14 @@ class AdminController extends Controller
                 'name_institution', 'address_institution', 'type_institution', 'other_institution', 'contact_person',
                 'created_at', 'updated_at'
             ];
+            
+            // Filter to only include columns that exist in the database
+            $columns = array_filter($allColumns, function($col) use ($existingColumns) {
+                return in_array($col, $existingColumns);
+            });
+            
+            // Re-index array to maintain sequential keys
+            $columns = array_values($columns);
 
             $callback = function () use ($query, $columns) {
                 $handle = fopen('php://output', 'w');
@@ -2209,7 +2225,7 @@ class AdminController extends Controller
                             if ($col === 'qualification' || $col === 'area_of_work') {
                                 $data[] = is_string($row->{$col}) ? $row->{$col} : json_encode($row->{$col});
                             } else {
-                                $data[] = $row->{$col};
+                                $data[] = $row->{$col} ?? '';
                             }
                         }
                         fputcsv($handle, $data);
