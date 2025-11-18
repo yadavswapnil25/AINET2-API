@@ -2089,6 +2089,40 @@ class AdminController extends Controller
     }
 
     /**
+     * Get single membership record by ID
+     */
+    public function getMembership($id)
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->error('Membership record not found', 404, [
+                    'message' => 'No membership record found with the given ID'
+                ]);
+            }
+
+            // Prevent viewing admin users through membership management
+            if ($user->role_id === 1) {
+                return $this->error('Cannot view admin user', 400, [
+                    'message' => 'Admin users cannot be viewed through membership management'
+                ]);
+            }
+
+            return $this->success('Membership record retrieved successfully', 200, [
+                'membership' => $user
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve membership record', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Export membership records as CSV
      */
     public function exportMembership(Request $request)
@@ -2268,7 +2302,7 @@ class AdminController extends Controller
 
             $validator = Validator::make($data, [
                 'ref' => 'sometimes|nullable|string|max:255',
-                'm_id' => 'sometimes|nullable|string|max:255',
+                'm_id' => 'sometimes|nullable|string|max:255|unique:users,m_id,' . $id,
                 'first_name' => 'sometimes|nullable|string|max:255',
                 'last_name' => 'sometimes|nullable|string|max:255',
                 'name' => 'sometimes|nullable|string|max:255',
@@ -2305,7 +2339,7 @@ class AdminController extends Controller
                 return $this->error('Validation failed', 422, $validator->errors());
             }
 
-            // Prepare update data - only include fields that are present in the request
+            // Prepare update data - only include fields that are present in the request and exist in the database
             $updateData = [];
             $allowedFields = [
                 'ref', 'm_id', 'first_name', 'last_name', 'name', 'email', 'mobile', 'whatsapp_no',
@@ -2316,10 +2350,19 @@ class AdminController extends Controller
                 'name_institution', 'address_institution', 'type_institution', 'other_institution', 'contact_person',
                 'addMonths', 'member_date', 'status'
             ];
+            // Get existing columns in the users table
+            $existingColumns = Schema::getColumnListing('users');
             
             foreach ($allowedFields as $field) {
-                if (isset($data[$field])) {
-                    $updateData[$field] = $data[$field];
+                // Use array_key_exists to check if key exists (even if value is null or empty string)
+                // Only include field if it exists in the request AND exists in the database table
+                if (array_key_exists($field, $data) && in_array($field, $existingColumns)) {
+                    // Special handling for m_id - normalize empty strings to null
+                    if ($field === 'm_id') {
+                        $updateData[$field] = ($data[$field] === '' || $data[$field] === null) ? null : trim((string)$data[$field]);
+                    } else {
+                        $updateData[$field] = $data[$field];
+                    }
                 }
             }
 

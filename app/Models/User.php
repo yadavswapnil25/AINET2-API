@@ -21,6 +21,7 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'ref',
+        'm_id',
         'first_name',
         'last_name',
         'email',
@@ -54,7 +55,8 @@ class User extends Authenticatable
         'other_institution',
         'contact_person',
         'addMonths',
-        'member_date'
+        'member_date',
+        'status'
     ];
 
     /**
