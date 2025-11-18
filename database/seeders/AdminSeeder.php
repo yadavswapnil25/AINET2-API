@@ -32,7 +32,7 @@ class AdminSeeder extends Seeder
                 'district' => 'Mumbai',
                 'address' => 'Admin Office, Mumbai',
                 'created_at' => now(),
-                'updated_at' => now(),
+                'updated_at' => now()
             ]
         );
     }
