@@ -35,6 +35,7 @@ Route::get('/events', [AdminController::class, 'getWebsiteEvents']);
 Route::get('/partners', [AdminController::class, 'getWebsitePartners']);
 Route::get('/galleries', [AdminController::class, 'getWebsiteGalleries']);
 Route::get('/news', [AdminController::class, 'getWebsiteNews']);
+Route::get('/highlights', [AdminController::class, 'getWebsiteHighlights']);
 Route::post('/newsletter/subscribe', [AdminController::class, 'subscribeNewsletter']);
 
 // Admin authentication routes
@@ -141,6 +142,13 @@ Route::prefix('admin')->group(function () {
         Route::delete('/memberships/{id}', [AdminController::class, 'deleteMembership']);
         Route::post('/memberships/bulk', [AdminController::class, 'bulkDeleteMembership']);
         Route::post('/memberships/{id}/restore', [AdminController::class, 'restoreMembership']);
+        
+        // Highlights CRUD operations
+        Route::get('/highlights', [AdminController::class, 'getHighlights']);
+        Route::post('/highlights', [AdminController::class, 'createHighlight']);
+        Route::get('/highlights/{id}', [AdminController::class, 'getHighlight']);
+        Route::put('/highlights/{id}', [AdminController::class, 'updateHighlight']);
+        Route::delete('/highlights/{id}', [AdminController::class, 'deleteHighlight']);
     });
 });
 

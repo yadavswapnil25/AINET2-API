@@ -14,6 +14,7 @@ use App\Models\Partner;
 use App\Models\Gallery;
 use App\Models\Newsletter;
 use App\Models\News;
+use App\Models\Highlight;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -4005,6 +4006,181 @@ class AdminController extends Controller
             ]);
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve news', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active highlights for website
+     */
+    public function getWebsiteHighlights(Request $request)
+    {
+        try {
+            $highlight = Highlight::where('is_active', true)
+                ->orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$highlight) {
+                // Return default values if no highlight exists
+                return $this->success('Highlight retrieved successfully', 200, [
+                    'highlight' => [
+                        'heading' => 'HIGHLIGHTS',
+                        'subheading' => '9th AINET International Conference 2026 - To Be Announced SOON'
+                    ]
+                ]);
+            }
+
+            return $this->success('Highlight retrieved successfully', 200, [
+                'highlight' => [
+                    'id' => $highlight->id,
+                    'heading' => $highlight->heading,
+                    'subheading' => $highlight->subheading,
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve highlight', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all highlights (admin)
+     */
+    public function getHighlights(Request $request)
+    {
+        try {
+            $highlights = Highlight::orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return $this->success('Highlights retrieved successfully', 200, [
+                'highlights' => $highlights
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve highlights', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get single highlight (admin)
+     */
+    public function getHighlight($id)
+    {
+        try {
+            $highlight = Highlight::find($id);
+
+            if (!$highlight) {
+                return $this->error('Highlight not found', 404);
+            }
+
+            return $this->success('Highlight retrieved successfully', 200, [
+                'highlight' => $highlight
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve highlight', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Create highlight (admin)
+     */
+    public function createHighlight(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'heading' => 'required|string|max:255',
+                'subheading' => 'required|string',
+                'is_active' => 'sometimes|boolean',
+                'sort_order' => 'sometimes|integer',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $highlight = Highlight::create($request->all());
+
+            return $this->success('Highlight created successfully', 201, [
+                'highlight' => $highlight
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create highlight', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Update highlight (admin)
+     */
+    public function updateHighlight(Request $request, $id)
+    {
+        try {
+            $highlight = Highlight::find($id);
+
+            if (!$highlight) {
+                return $this->error('Highlight not found', 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'heading' => 'sometimes|string|max:255',
+                'subheading' => 'sometimes|string',
+                'is_active' => 'sometimes|boolean',
+                'sort_order' => 'sometimes|integer',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $highlight->update($request->all());
+
+            return $this->success('Highlight updated successfully', 200, [
+                'highlight' => $highlight->fresh()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update highlight', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Delete highlight (admin)
+     */
+    public function deleteHighlight($id)
+    {
+        try {
+            $highlight = Highlight::find($id);
+
+            if (!$highlight) {
+                return $this->error('Highlight not found', 404);
+            }
+
+            $highlight->delete();
+
+            return $this->success('Highlight deleted successfully', 200);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete highlight', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())
