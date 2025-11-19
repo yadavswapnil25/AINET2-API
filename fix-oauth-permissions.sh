@@ -19,11 +19,11 @@ else
     echo "⚠ OAuth private key not found. Run: php artisan passport:keys"
 fi
 
-# Fix OAuth public key (can be 644 - readable by all)
+# Fix OAuth public key (should be 600 or 660 for security)
 if [ -f "storage/oauth-public.key" ]; then
     sudo chown $WEB_USER:$WEB_USER storage/oauth-public.key
-    sudo chmod 644 storage/oauth-public.key
-    echo "✓ OAuth public key permissions set to 644"
+    sudo chmod 600 storage/oauth-public.key
+    echo "✓ OAuth public key permissions set to 600"
 else
     echo "⚠ OAuth public key not found. Run: php artisan passport:keys"
 fi

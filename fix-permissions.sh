@@ -41,8 +41,8 @@ fi
 if [ -f "storage/oauth-public.key" ]; then
     echo "Fixing OAuth public key permissions..."
     sudo chown $WEB_USER:$WEB_USER storage/oauth-public.key
-    sudo chmod 644 storage/oauth-public.key
-    echo "OAuth public key permissions set to 644"
+    sudo chmod 600 storage/oauth-public.key
+    echo "OAuth public key permissions set to 600"
 fi
 
 echo ""
