@@ -1010,10 +1010,23 @@ class AdminController extends Controller
         try {
             $perPage = $request->get('per_page', 15);
             $search = $request->get('search');
+            $deleted = $request->get('deleted', 'without'); // 'with', 'without', 'only'
             $sortBy = $request->get('sort_by', 'created_at');
             $sortOrder = $request->get('sort_order', 'desc');
 
             $query = User::query();
+
+            // Handle deleted filter
+            if ($deleted === 'only') {
+                // Show only deleted users
+                $query->onlyTrashed();
+            } elseif ($deleted === 'with') {
+                // Show all users including deleted
+                $query->withTrashed();
+            } else {
+                // Default: Show only non-deleted users (without)
+                $query->whereNull('deleted_at');
+            }
 
             // Search functionality
             if ($search) {
@@ -1249,14 +1262,91 @@ class AdminController extends Controller
                 ]);
             }
 
+            // Soft delete
             $user->delete();
 
             return $this->success('User deleted successfully', 200, [
-                'message' => 'User has been permanently deleted'
+                'message' => 'User has been deleted'
             ]);
 
         } catch (\Throwable $e) {
             return $this->error('Failed to delete user', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Permanently delete (hard delete) a user from database
+     */
+    public function forceDeleteUser(Request $request, $id)
+    {
+        try {
+            // Find user including trashed
+            $user = User::withTrashed()->find($id);
+
+            if (!$user) {
+                return $this->error('User not found', 404, [
+                    'message' => 'No user found with the given ID'
+                ]);
+            }
+
+            // Prevent deleting the current admin user
+            if ($user->id === $request->user()->id) {
+                return $this->error('Cannot delete your own account', 400, [
+                    'message' => 'You cannot permanently delete your own user account'
+                ]);
+            }
+
+            // Hard delete (permanently remove from database)
+            $user->forceDelete();
+
+            return $this->success('User permanently deleted successfully', 200, [
+                'message' => 'User has been permanently deleted from the database'
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to permanently delete user', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Restore a soft-deleted user
+     */
+    public function restoreUser(Request $request, $id)
+    {
+        try {
+            // Find user including trashed
+            $user = User::withTrashed()->find($id);
+
+            if (!$user) {
+                return $this->error('User not found', 404, [
+                    'message' => 'No user found with the given ID'
+                ]);
+            }
+
+            if (!$user->trashed()) {
+                return $this->error('User is not deleted', 400, [
+                    'message' => 'This user is not deleted and cannot be restored'
+                ]);
+            }
+
+            // Restore the user
+            $user->restore();
+
+            return $this->success('User restored successfully', 200, [
+                'message' => 'User has been restored successfully',
+                'user' => $user->fresh()
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to restore user', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())

@@ -70,6 +70,9 @@ Route::prefix('admin')->group(function () {
         Route::get('/users/stats', [AdminController::class, 'getUserStats']);
         Route::post('/users', [AdminController::class, 'createUser']);
         Route::delete('/users/bulk', [AdminController::class, 'bulkDeleteUser']);
+        // Specific routes must come before parameterized routes
+        Route::delete('/users/{id}/force', [AdminController::class, 'forceDeleteUser']);
+        Route::post('/users/{id}/restore', [AdminController::class, 'restoreUser']);
         Route::get('/users/{id}', [AdminController::class, 'getUser']);
         Route::put('/users/{id}', [AdminController::class, 'updateUser']);
         Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
