@@ -342,8 +342,11 @@ class AdminController extends Controller
                 'phone_no' => 'sometimes|nullable|string',
                 'email' => 'sometimes|nullable|email',
                 'areas' => 'sometimes|nullable|string',
+                'other' => 'sometimes|nullable|string',
+                'areas_of_interest' => 'sometimes|nullable|string',
                 'experience' => 'sometimes|nullable|string',
                 'conference' => 'sometimes|nullable|string',
+                'types' => 'sometimes|nullable|string',
                 'conference_attendance' => 'sometimes|nullable|string',
                 'you_are_register_as' => 'sometimes|nullable|string',
                 'pre_title' => 'sometimes|nullable|string',
@@ -366,7 +369,7 @@ class AdminController extends Controller
             $allowedFields = [
                 'member', 'name', 'gender', 'age', 'institution', 'address',
                 'city', 'pincode', 'state', 'country_code', 'phone_no', 'email',
-                'areas', 'experience', 'conference', 'conference_attendance', 'you_are_register_as', 'pre_title'
+                'areas', 'other', 'areas_of_interest', 'experience', 'conference', 'types', 'conference_attendance', 'you_are_register_as', 'pre_title'
             ];
             
             foreach ($allowedFields as $field) {

@@ -17,8 +17,8 @@ use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
 use App\Mails\DrfPaymentReceiptMail;
+use App\Mails\PpfSubmissionConfirmationMail;
 
 class FormController extends Controller
 {
@@ -70,9 +70,20 @@ class FormController extends Controller
             $ppf->pr1_bio = $request->presenter_bio;
             $ppf->pr2_bio = $request->co_presenter_1_bio;
             $ppf->pr3_bio = $request->co_presenter_2_bio;
-            $ppf->pr4_bio = $request->pr3_bio;
+            // Save remaining copresenters (pr3_bio from request) to pr4_bio in database
+            // The frontend sends this field as 'pr3_bio', and we save it to 'pr4_bio' column
+            $remainingCopresenters = trim($request->pr3_bio ?? '');
+            $ppf->pr4_bio = !empty($remainingCopresenters) ? $remainingCopresenters : null;
             $ppf->save();
 
+            // Send confirmation email
+            try {
+                Mail::send(new PpfSubmissionConfirmationMail($ppf));
+            } catch (\Throwable $mailException) {
+           
+                // Continue even if email fails - the submission was successful
+            }
+ 
                 return $this->success('PPF submitted successfully', 201, [ 'id' => $ppf->id ]);
             });
         } catch (\Illuminate\Database\QueryException $e) {
@@ -122,15 +133,31 @@ class FormController extends Controller
             $drf->phone_no = $request->phone_no;
             $drf->email = $request->email;
 
-            if(!empty($request->areas)){
-                $areas = $request->areas;
-                $drf->areas = implode(',', $areas);
+            // Handle areas array - ensure it's saved properly
+            if ($request->has('areas') && is_array($request->areas) && count($request->areas) > 0) {
+                $areas = array_filter(array_map('trim', $request->areas), function($value) {
+                    return $value !== '' && $value !== null;
+                }); // Remove empty values and trim
+                $drf->areas = !empty($areas) ? implode(',', $areas) : null;
             } else {
                 $drf->areas = null;
             }
 
-            $drf->other = $request->other;
-            $drf->areas_of_interest = $request->areas_of_interest;
+            // Handle other field - convert empty string to null, otherwise trim and save
+            if ($request->has('other')) {
+                $otherValue = trim($request->other ?? '');
+                $drf->other = $otherValue !== '' ? $otherValue : null;
+            } else {
+                $drf->other = null;
+            }
+
+            // Handle areas_of_interest - convert empty string to null
+            if ($request->has('areas_of_interest')) {
+                $interestValue = trim($request->areas_of_interest ?? '');
+                $drf->areas_of_interest = $interestValue !== '' ? $interestValue : null;
+            } else {
+                $drf->areas_of_interest = null;
+            }
 
             $drf->experience = $request->experience;
 
@@ -289,17 +316,7 @@ class FormController extends Controller
         $originalAmount = $this->calculateDrfAmount($drf, 0);
         // Calculate final amount with discount
         $amountRupees = $this->calculateDrfAmount($drf, $discountPercentage);
-        
-        // Debug logging
-        Log::info('DRF Amount Calculation', [
-            'drf_id' => $drf->id,
-            'membership_id' => $validated['membership_id'] ?? null,
-            'membership_valid' => $membershipValid,
-            'discount_percentage' => $discountPercentage,
-            'original_amount' => $originalAmount,
-            'discounted_amount' => $amountRupees,
-            'amount_in_paise' => $amountRupees * 100,
-        ]);
+  
         
         if ($amountRupees <= 0) {
             return response()->json([
@@ -330,18 +347,7 @@ class FormController extends Controller
             // Get the amount from Razorpay order response (already in paise)
             // The order was created with $amountRupees (discounted amount), so this should match
             $razorpayOrderAmount = (int) ($order['amount'] ?? ($amountRupees * 100));
-            
-            // Log for debugging (remove in production)
-            Log::info('DRF Order Created', [
-                'drf_id' => $drf->id,
-                'membership_id' => $validated['membership_id'] ?? null,
-                'membership_valid' => $membershipValid,
-                'discount_percentage' => $discountPercentage,
-                'original_amount' => $originalAmount,
-                'discounted_amount' => $amountRupees,
-                'razorpay_order_amount_paise' => $razorpayOrderAmount,
-                'razorpay_order_amount_rupees' => $razorpayOrderAmount / 100,
-            ]);
+    
             
             return response()->json([
                 'status' => true,
