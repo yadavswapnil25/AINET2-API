@@ -18,7 +18,7 @@ class MembershipSignupRequest extends FormRequest
         return [
             'first_name'        => 'required|string|max:255',
             'last_name'         => 'required_if:membership_type,Individual|string|max:255',
-            'dob'               => 'required_if:membership_type,Individual|string|before:today',
+            'age_group'         => 'required_if:membership_type,Individual|string|in:Under 18,18-25,26-35,36-45,46-55,56-65,Over 65',
             'gender'            => ['required_if:membership_type,Individual', 'string', new Enum(GenderEnum::class)],
             'mobile'            => 'required|string|max:20',
             'whatsapp_no'       => 'required|string|max:20',

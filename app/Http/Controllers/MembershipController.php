@@ -69,7 +69,7 @@ class MembershipController extends Controller
             $gender = $data['gender'] ?? null;
             $mobile = $data['mobile'] ?? null;
             $whatsappNo = $data['whatsapp_no'] ?? null;
-            $dob = $data['dob'] ?? null;
+            $ageGroup = $data['age_group'] ?? null;
             $address = $data['address'] ?? null;
             $state = $data['state'] ?? null;
             $district = $data['district'] ?? null;
@@ -90,10 +90,8 @@ class MembershipController extends Controller
             $emailPerson = $data['emailperson'] ?? null;
             $mobilePerson = $data['mobileperson'] ?? null;
             $collaborate = $data['collaborate'] ?? null;
-            if ($dob && preg_match('/\d{2}\/\d{2}\/\d{4}/', $dob)) {
-                $dobObj = \DateTime::createFromFormat('d/m/Y', $dob);
-                $dob = $dobObj ? $dobObj->format('Y-m-d') : null;
-            }
+            // Store age_group value in the dob column (backward compatibility)
+            $dob = $ageGroup;
 
             $fullName = $this->composeFullName(
                 $firstName,
