@@ -2412,7 +2412,7 @@ class AdminController extends Controller
 
             $validator = Validator::make($data, [
                 'ref' => 'sometimes|nullable|string|max:255',
-                'm_id' => 'sometimes|nullable|string|max:255|unique:users,m_id,' . $id,
+                'm_id' => 'sometimes|nullable|unique:users,m_id,' . $id,
                 'first_name' => 'sometimes|nullable|string|max:255',
                 'last_name' => 'sometimes|nullable|string|max:255',
                 'name' => 'sometimes|nullable|string|max:255',
