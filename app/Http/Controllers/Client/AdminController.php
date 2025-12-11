@@ -1118,6 +1118,49 @@ class AdminController extends Controller
     }
 
     /**
+     * Generate login token for a user (Admin login as user)
+     */
+    public function loginAsUser(Request $request, $id)
+    {
+        try {
+            $user = User::find($id);
+
+            if (!$user) {
+                return $this->error('User not found', 404, [
+                    'message' => 'No user found with the given ID'
+                ]);
+            }
+
+            // Check if user is soft deleted
+            if ($user->deleted_at) {
+                return $this->error('Cannot login as deleted user', 400, [
+                    'message' => 'The user has been deleted and cannot be logged in'
+                ]);
+            }
+
+            // Generate token for the user (similar to LoginController)
+            $fingerPrint = $request->fingerprint() ?? 'Admin Login As User';
+            $accessGrant = $user->createToken($fingerPrint);
+
+            return $this->success('Login token generated successfully', 200, [
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                ],
+                'token' => $accessGrant->accessToken
+            ]);
+
+        } catch (\Throwable $e) {
+            return $this->error('Failed to generate login token', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Create new user
      */
     public function createUser(Request $request)

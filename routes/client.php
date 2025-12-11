@@ -73,6 +73,7 @@ Route::prefix('admin')->group(function () {
         // Specific routes must come before parameterized routes
         Route::delete('/users/{id}/force', [AdminController::class, 'forceDeleteUser']);
         Route::post('/users/{id}/restore', [AdminController::class, 'restoreUser']);
+        Route::post('/users/{id}/login-as', [AdminController::class, 'loginAsUser']);
         Route::get('/users/{id}', [AdminController::class, 'getUser']);
         Route::put('/users/{id}', [AdminController::class, 'updateUser']);
         Route::delete('/users/{id}', [AdminController::class, 'deleteUser']);
