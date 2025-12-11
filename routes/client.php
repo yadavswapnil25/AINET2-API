@@ -6,6 +6,7 @@ use App\Http\Controllers\Client\FormController;
 use App\Http\Controllers\Client\LoginController;
 use App\Http\Controllers\Client\PaymentController;
 use App\Http\Controllers\Client\AdminController;
+use App\Http\Controllers\Client\BulkUpdateController;
 
 Route::get('/test', function () {
     return response()->json([
@@ -69,6 +70,7 @@ Route::prefix('admin')->group(function () {
         Route::get('/users', [AdminController::class, 'getUserList']);
         Route::get('/users/stats', [AdminController::class, 'getUserStats']);
         Route::post('/users', [AdminController::class, 'createUser']);
+        Route::post('/users/bulk-update-member-date', [BulkUpdateController::class, 'bulkUpdateMemberDate']);
         Route::delete('/users/bulk', [AdminController::class, 'bulkDeleteUser']);
         // Specific routes must come before parameterized routes
         Route::delete('/users/{id}/force', [AdminController::class, 'forceDeleteUser']);
