@@ -56,34 +56,17 @@ class BulkUpdateMemberDate extends Command
         }
 
         $this->info("Reading file: {$filePath}");
+        $this->info("Memory usage: " . $this->formatBytes(memory_get_usage(true)));
         $startTime = microtime(true);
         
-        // Read the file
-        $rows = $this->readFile($filePath);
-        $readTime = round(microtime(true) - $startTime, 2);
-        
-        if (empty($rows)) {
-            $this->error("No data found in file");
-            return 1;
-        }
-
-        $this->info("Found " . count($rows) . " rows in file (read in {$readTime}s)");
-        
-        // Get headers (first row)
-        $headers = array_keys($rows[0]);
-        $this->info("Columns found: " . implode(', ', $headers));
-        
-        // Check if email column exists
-        if (!in_array($emailColumn, $headers)) {
-            $this->error("Email column '{$emailColumn}' not found in file. Available columns: " . implode(', ', $headers));
-            return 1;
-        }
-
+        // Process in chunks to avoid memory issues
+        $chunkSize = 500; // Process 500 rows at a time
         $updated = 0;
         $notFound = 0;
         $errors = [];
         $wouldUpdate = [];
-        $totalRows = count($rows);
+        $totalRows = 0;
+        $headers = null;
 
         if ($dryRun) {
             $this->warn("=== DRY RUN MODE - No changes will be made ===");
@@ -91,87 +74,128 @@ class BulkUpdateMemberDate extends Command
             DB::beginTransaction();
         }
         
-        // Extract all emails first for batch lookup
-        $emails = [];
-        foreach ($rows as $index => $row) {
-            $email = trim($row[$emailColumn] ?? '');
-            if (!empty($email)) {
-                $emails[] = $email;
-            }
-        }
-        
-        // Batch fetch all users at once to avoid N+1 queries
-        $this->info("Fetching users from database...");
-        $dbStartTime = microtime(true);
-        $users = User::whereIn('email', $emails)->get()->keyBy('email');
-        $dbTime = round(microtime(true) - $dbStartTime, 2);
-        $this->info("Found " . $users->count() . " matching users in database (fetched in {$dbTime}s)");
-        
-        $processStartTime = microtime(true);
         try {
-            $bar = $this->output->createProgressBar($totalRows);
-            $bar->start();
+            // Get headers first
+            $headers = $this->getFileHeaders($filePath);
+            if (empty($headers)) {
+                $this->error("Could not read file headers");
+                return 1;
+            }
             
-            foreach ($rows as $index => $row) {
-                $email = trim($row[$emailColumn] ?? '');
+            $this->info("Columns found: " . implode(', ', $headers));
+            
+            // Check if email column exists
+            if (!in_array($emailColumn, $headers)) {
+                $this->error("Email column '{$emailColumn}' not found in file. Available columns: " . implode(', ', $headers));
+                return 1;
+            }
+            
+            // Process file in chunks
+            $processStartTime = microtime(true);
+            $chunkNumber = 0;
+            
+            $this->info("Processing file in chunks of {$chunkSize} rows...");
+            
+            foreach ($this->readFileInChunks($filePath, $chunkSize, $headers) as $chunkRows) {
+                $chunkNumber++;
+                $chunkStart = microtime(true);
                 
-                if (empty($email)) {
-                    $errors[] = "Row " . ($index + 2) . ": Empty email";
-                    $bar->advance();
+                if ($totalRows === 0) {
+                    // First chunk - estimate total rows
+                    $estimatedTotal = $this->estimateTotalRows($filePath);
+                    $bar = $this->output->createProgressBar($estimatedTotal);
+                    $bar->start();
+                }
+                
+                // Extract emails from this chunk
+                $emails = [];
+                foreach ($chunkRows as $row) {
+                    $email = trim($row[$emailColumn] ?? '');
+                    if (!empty($email)) {
+                        $emails[] = $email;
+                    }
+                }
+                
+                if (empty($emails)) {
+                    $bar->advance(count($chunkRows));
                     continue;
                 }
-
-                // If date column is provided and exists in file, use that date, otherwise use the option date
-                $rowMemberDate = null;
-                if ($dateColumn && isset($row[$dateColumn]) && !empty($row[$dateColumn])) {
-                    $rowMemberDate = $row[$dateColumn];
-                    // Try to parse the date
-                    $parsedDate = $this->parseDate($rowMemberDate);
-                    if ($parsedDate && $this->isValidDate($parsedDate)) {
-                        $rowMemberDate = $parsedDate;
-                    } else {
-                        $errors[] = "Row " . ($index + 2) . ": Invalid date format or out of range for {$email} (value: {$rowMemberDate})";
+                
+                // Fetch users for this chunk
+                $users = User::whereIn('email', $emails)->get()->keyBy('email');
+                
+                // Process each row in chunk
+                foreach ($chunkRows as $rowIndex => $row) {
+                    $totalRows++;
+                    $email = trim($row[$emailColumn] ?? '');
+                    
+                    if (empty($email)) {
+                        $errors[] = "Row " . ($totalRows + 1) . ": Empty email";
                         $bar->advance();
                         continue;
                     }
-                } else {
-                    $rowMemberDate = $memberDate;
-                }
 
-                // Validate the final date before saving
-                if (!$this->isValidDate($rowMemberDate)) {
-                    $errors[] = "Row " . ($index + 2) . ": Invalid date value for {$email} (value: {$rowMemberDate})";
-                    $bar->advance();
-                    continue;
-                }
-
-                // Find user by email from pre-fetched collection
-                $user = $users->get($email);
-
-                if ($user) {
-                    if ($dryRun) {
-                        $currentDate = $user->member_date ? $user->member_date->format('Y-m-d') : 'NULL';
-                        $wouldUpdate[] = [
-                            'email' => $email,
-                            'current_date' => $currentDate,
-                            'new_date' => $rowMemberDate,
-                            'name' => $user->name ?? 'N/A'
-                        ];
-                        $updated++;
+                    // If date column is provided and exists in file, use that date, otherwise use the option date
+                    $rowMemberDate = null;
+                    if ($dateColumn && isset($row[$dateColumn]) && !empty($row[$dateColumn])) {
+                        $rowMemberDate = $row[$dateColumn];
+                        // Try to parse the date
+                        $parsedDate = $this->parseDate($rowMemberDate);
+                        if ($parsedDate && $this->isValidDate($parsedDate)) {
+                            $rowMemberDate = $parsedDate;
+                        } else {
+                            $errors[] = "Row " . ($totalRows + 1) . ": Invalid date format or out of range for {$email} (value: {$rowMemberDate})";
+                            $bar->advance();
+                            continue;
+                        }
                     } else {
-                        $user->member_date = $rowMemberDate;
-                        $user->save();
-                        $updated++;
+                        $rowMemberDate = $memberDate;
                     }
-                } else {
-                    $notFound++;
+
+                    // Validate the final date before saving
+                    if (!$this->isValidDate($rowMemberDate)) {
+                        $errors[] = "Row " . ($totalRows + 1) . ": Invalid date value for {$email} (value: {$rowMemberDate})";
+                        $bar->advance();
+                        continue;
+                    }
+
+                    // Find user by email from pre-fetched collection
+                    $user = $users->get($email);
+
+                    if ($user) {
+                        if ($dryRun) {
+                            $currentDate = $user->member_date ? $user->member_date->format('Y-m-d') : 'NULL';
+                            $wouldUpdate[] = [
+                                'email' => $email,
+                                'current_date' => $currentDate,
+                                'new_date' => $rowMemberDate,
+                                'name' => $user->name ?? 'N/A'
+                            ];
+                            $updated++;
+                        } else {
+                            $user->member_date = $rowMemberDate;
+                            $user->save();
+                            $updated++;
+                        }
+                    } else {
+                        $notFound++;
+                    }
+                    
+                    $bar->advance();
                 }
                 
-                $bar->advance();
+                // Free memory after each chunk
+                unset($chunkRows, $emails, $users);
+                gc_collect_cycles();
+                
+                $chunkTime = round(microtime(true) - $chunkStart, 2);
+                $this->line("\nChunk {$chunkNumber} processed in {$chunkTime}s. Memory: " . $this->formatBytes(memory_get_usage(true)));
             }
             
-            $bar->finish();
-            $this->newLine(2);
+            if (isset($bar)) {
+                $bar->finish();
+                $this->newLine(2);
+            }
 
             if (!$dryRun) {
                 DB::commit();
@@ -180,9 +204,10 @@ class BulkUpdateMemberDate extends Command
             $processTime = round(microtime(true) - $processStartTime, 2);
             $totalTime = round(microtime(true) - $startTime, 2);
             $this->info("\n=== Summary ===");
-            $this->info("Total rows processed: " . count($rows));
+            $this->info("Total rows processed: {$totalRows}");
             $this->info("Processing time: {$processTime}s");
             $this->info("Total time: {$totalTime}s");
+            $this->info("Peak memory usage: " . $this->formatBytes(memory_get_peak_usage(true)));
             if ($dryRun) {
                 $this->info("Would update: {$updated}");
                 $this->info("Not found: {$notFound}");
@@ -494,6 +519,230 @@ class BulkUpdateMemberDate extends Command
         }
 
         return true;
+    }
+
+    /**
+     * Get file headers without loading entire file
+     */
+    private function getFileHeaders($filePath)
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+        if ($extension === 'csv') {
+            $handle = fopen($filePath, 'r');
+            if ($handle === false) {
+                return [];
+            }
+            $headers = fgetcsv($handle);
+            fclose($handle);
+            return $headers ? array_map('trim', $headers) : [];
+        } elseif (in_array($extension, ['xlsx', 'xls'])) {
+            if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+                throw new \Exception("PhpSpreadsheet is required for Excel files");
+            }
+            
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            
+            $headers = [];
+            $maxColumns = 50;
+            for ($col = 1; $col <= $maxColumns; $col++) {
+                $cellCoordinate = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($col) . '1';
+                $cellValue = $worksheet->getCell($cellCoordinate)->getValue();
+                if (empty($cellValue) && $col > 10) {
+                    break;
+                }
+                $headers[] = trim($cellValue ?? '');
+            }
+            
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+            return $headers;
+        }
+
+        return [];
+    }
+
+    /**
+     * Read file in chunks to save memory
+     */
+    private function readFileInChunks($filePath, $chunkSize, $headers)
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+        if ($extension === 'csv') {
+            return $this->readCsvInChunks($filePath, $chunkSize, $headers);
+        } elseif (in_array($extension, ['xlsx', 'xls'])) {
+            return $this->readExcelInChunks($filePath, $chunkSize, $headers);
+        }
+
+        throw new \Exception("Unsupported file format");
+    }
+
+    /**
+     * Read CSV in chunks
+     */
+    private function readCsvInChunks($filePath, $chunkSize, $headers)
+    {
+        $handle = fopen($filePath, 'r');
+        if ($handle === false) {
+            return;
+        }
+
+        // Skip header row
+        fgetcsv($handle);
+
+        $chunk = [];
+        while (($data = fgetcsv($handle)) !== false) {
+            if (count($data) !== count($headers)) {
+                continue;
+            }
+            
+            $row = array_combine($headers, array_map('trim', $data));
+            if ($row) {
+                $chunk[] = $row;
+                
+                if (count($chunk) >= $chunkSize) {
+                    yield $chunk;
+                    $chunk = [];
+                }
+            }
+        }
+
+        // Yield remaining rows
+        if (!empty($chunk)) {
+            yield $chunk;
+        }
+
+        fclose($handle);
+    }
+
+    /**
+     * Read Excel in chunks
+     */
+    private function readExcelInChunks($filePath, $chunkSize, $headers)
+    {
+        if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+            throw new \Exception("PhpSpreadsheet is required for Excel files");
+        }
+
+        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
+        $reader->setReadDataOnly(true);
+        $reader->setReadEmptyCells(false);
+        
+        $spreadsheet = $reader->load($filePath);
+        $worksheet = $spreadsheet->getActiveSheet();
+        $highestRow = $worksheet->getHighestDataRow();
+        
+        $chunk = [];
+        for ($row = 2; $row <= $highestRow; $row++) {
+            $rowData = [];
+            $isEmpty = true;
+            
+            foreach ($headers as $colIndex => $header) {
+                $colLetter = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex + 1);
+                $cellCoordinate = $colLetter . $row;
+                $cell = $worksheet->getCell($cellCoordinate);
+                
+                $cellValue = $cell->getValue();
+                
+                if (\PhpOffice\PhpSpreadsheet\Shared\Date::isDateTime($cell)) {
+                    try {
+                        $dateValue = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($cellValue);
+                        $cellValue = $dateValue->format('m/d/Y');
+                    } catch (\Exception $e) {
+                        $cellValue = trim($cell->getFormattedValue() ?? '');
+                    }
+                } elseif (is_numeric($cellValue) && $cellValue > 1 && $cellValue < 1000000) {
+                    try {
+                        if ($cellValue >= 1 && $cellValue <= 2958465) {
+                            $dateValue = \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($cellValue);
+                            $cellValue = $dateValue->format('m/d/Y');
+                        } else {
+                            $cellValue = trim($cellValue ?? '');
+                        }
+                    } catch (\Exception $e) {
+                        $cellValue = trim($cellValue ?? '');
+                    }
+                } else {
+                    $cellValue = trim($cellValue ?? '');
+                }
+                
+                if (!empty($cellValue)) {
+                    $isEmpty = false;
+                }
+                
+                $rowData[$header] = $cellValue;
+            }
+            
+            if (!$isEmpty) {
+                $chunk[] = $rowData;
+                
+                if (count($chunk) >= $chunkSize) {
+                    yield $chunk;
+                    $chunk = [];
+                    gc_collect_cycles();
+                }
+            }
+        }
+        
+        if (!empty($chunk)) {
+            yield $chunk;
+        }
+        
+        $spreadsheet->disconnectWorksheets();
+        unset($spreadsheet);
+    }
+
+    /**
+     * Estimate total rows in file (for progress bar)
+     */
+    private function estimateTotalRows($filePath)
+    {
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+
+        if ($extension === 'csv') {
+            $lineCount = 0;
+            $handle = fopen($filePath, 'r');
+            if ($handle) {
+                while (fgets($handle) !== false) {
+                    $lineCount++;
+                }
+                fclose($handle);
+            }
+            return max(1, $lineCount - 1); // Subtract header
+        } elseif (in_array($extension, ['xlsx', 'xls'])) {
+            if (!class_exists(\PhpOffice\PhpSpreadsheet\IOFactory::class)) {
+                return 1000; // Default estimate
+            }
+            
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($filePath);
+            $worksheet = $spreadsheet->getActiveSheet();
+            $highestRow = $worksheet->getHighestDataRow();
+            $spreadsheet->disconnectWorksheets();
+            unset($spreadsheet);
+            return max(1, $highestRow - 1); // Subtract header
+        }
+
+        return 1000; // Default estimate
+    }
+
+    /**
+     * Format bytes to human readable format
+     */
+    private function formatBytes($bytes, $precision = 2)
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        
+        for ($i = 0; $bytes > 1024 && $i < count($units) - 1; $i++) {
+            $bytes /= 1024;
+        }
+        
+        return round($bytes, $precision) . ' ' . $units[$i];
     }
 }
 
