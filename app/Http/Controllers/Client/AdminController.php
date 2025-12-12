@@ -1458,9 +1458,12 @@ class AdminController extends Controller
             $now = now();
 
             foreach ($membersWithId as $user) {
-                // Calculate expiry date: member_date + addMonths
-                // Use member_date if available, otherwise fallback to created_at
-                $memberDate = $user->member_date ?? $user->created_at;
+                // Calculate expiry date: member_date + addMonths (must have member_date)
+                if (empty($user->member_date)) {
+                    $inactiveMembers++;
+                    continue;
+                }
+                $memberDate = $user->member_date;
                 $addMonths = $user->addMonths ?? 12; // Default to 12 months if not set
                 
                 // Calculate expiry date: add months and set to last day of that month with original time

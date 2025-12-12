@@ -296,18 +296,20 @@ class FormController extends Controller
                     $drf->save();
                 }
 
-                // Use member_date if available, otherwise fallback to created_at
-                $memberDate = $user->member_date ?? $user->created_at;
-                $addMonths = $user->addMonths ?? 12;
-                // Calculate expiry: add months, set to last day of that month with original time
-                $expiryDate = $memberDate->copy()->addMonths($addMonths);
-                $lastDayOfMonth = $expiryDate->copy()->endOfMonth()->day;
-                $expiryDate = $expiryDate->setDate($expiryDate->year, $expiryDate->month, $lastDayOfMonth)
-                    ->setTime($memberDate->hour, $memberDate->minute, $memberDate->second);
-                
-                if (now()->lessThanOrEqualTo($expiryDate)) {
-                    $membershipValid = true;
-                    $discountPercentage = 10;
+                // Use member_date only; if missing, membership not valid
+                if (!empty($user->member_date)) {
+                    $memberDate = $user->member_date;
+                    $addMonths = $user->addMonths ?? 12;
+                    // Calculate expiry: add months, set to last day of that month with original time
+                    $expiryDate = $memberDate->copy()->addMonths($addMonths);
+                    $lastDayOfMonth = $expiryDate->copy()->endOfMonth()->day;
+                    $expiryDate = $expiryDate->setDate($expiryDate->year, $expiryDate->month, $lastDayOfMonth)
+                        ->setTime($memberDate->hour, $memberDate->minute, $memberDate->second);
+                    
+                    if (now()->lessThanOrEqualTo($expiryDate)) {
+                        $membershipValid = true;
+                        $discountPercentage = 10;
+                    }
                 }
             }
         }
@@ -640,9 +642,15 @@ class FormController extends Controller
             //     ]);
             // }
 
-            // Calculate expiry date: member_date + addMonths
-            // Use member_date if available, otherwise fallback to created_at
-            $memberDate = $user->member_date ?? $user->created_at;
+            // Calculate expiry date: member_date + addMonths (must have member_date)
+            if (empty($user->member_date)) {
+                return $this->success('Membership date not set', 200, [
+                    'valid' => false,
+                    'discount_applicable' => false,
+                    'message' => 'Membership start date is missing',
+                ]);
+            }
+            $memberDate = $user->member_date;
             $addMonths = $user->addMonths ?? 12; // Default to 12 months if not set
             
             // Calculate expiry date: add months and set to last day of that month with original time
