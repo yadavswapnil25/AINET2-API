@@ -66,6 +66,7 @@ class MembershipController extends Controller
             $password = $data['password'] ?? '';
             $qualification = $data['qualification'] ?? null;
             $areaOfWork = $data['area_of_work'] ?? null;
+            $otherAreaOfWork = $data['other_area_of_work'] ?? null;
             $gender = $data['gender'] ?? null;
             $mobile = $data['mobile'] ?? null;
             $whatsappNo = $data['whatsapp_no'] ?? null;
@@ -100,7 +101,7 @@ class MembershipController extends Controller
                 $membershipType,
                 $nameInstitution
             );
-
+            
             $user = User::create([
                 'first_name' => $firstName,
                 'last_name' => $lastName,
@@ -109,6 +110,7 @@ class MembershipController extends Controller
                 'password' => Hash::make($password),
                 'qualification'   => is_array($qualification) ? json_encode($qualification) : $qualification,
                 'area_of_work'    => is_array($areaOfWork) ? json_encode($areaOfWork) : $areaOfWork,
+                'other_area_of_work' => $otherAreaOfWork,
                 'gender' => $gender,
                 'mobile' => $mobile,
                 'whatsapp_no' => $whatsappNo,
@@ -123,15 +125,15 @@ class MembershipController extends Controller
                 'pin' => $pin,
                 'ref' => Str::uuid(), 
                 'has_member_any' => $hasMemberAny,
-                'name_association ' => $nameAssociation,
+                'name_association' => $nameAssociation,
                 'expectation' => $expectation,
                 'has_newsletter' => $hasNewsletter,
                 'title' => $title,
-                'address' => $addressInstitution,
+                'address_institution' => $addressInstitution,
                 'inst_type' => $typeInstitution,
                 'othertype' => $otherInstitution,
                 'person' => $contactPerson,
-                'emailperson ' => $emailPerson,
+                'emailperson' => $emailPerson,
                 'mobileperson' => $mobilePerson,
                 'collaborate' => $collaborate,
                 'payment_status' => 'pending',

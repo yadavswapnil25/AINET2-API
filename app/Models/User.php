@@ -37,6 +37,7 @@ class User extends Authenticatable
         'teaching_exp',
         'qualification',
         'area_of_work',
+        'other_area_of_work',
         'membership_type',
         'membership_plan',
         'pin',
