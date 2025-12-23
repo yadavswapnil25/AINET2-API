@@ -24,11 +24,11 @@ echo "2. Running migrations..."
 php artisan migrate --force
 
 echo ""
-echo "3. Clearing and caching configuration..."
+echo "3. Clearing all caches..."
+php artisan optimize:clear
 php artisan config:clear
-php artisan cache:clear
 php artisan view:clear
-php artisan route:clear
+php artisan cache:clear
 
 echo ""
 echo "4. Optimizing application..."
@@ -49,13 +49,7 @@ mkdir -p bootstrap/cache
 echo ""
 echo "6. Fixing permissions..."
 sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache
-sudo find storage -type d -exec chmod 775 {} \;
-sudo find storage -type f -exec chmod 664 {} \;
-sudo find bootstrap/cache -type d -exec chmod 775 {} \;
-sudo find bootstrap/cache -type f -exec chmod 664 {} \;
-sudo chgrp -R $WEB_USER storage bootstrap/cache
-sudo find storage -type d -exec chmod g+s {} \;
-sudo find bootstrap/cache -type d -exec chmod g+s {} \;
+sudo chmod -R 775 storage bootstrap/cache
 
 echo ""
 echo "7. Creating storage link..."
@@ -73,11 +67,17 @@ if [ -f "storage/oauth-public.key" ]; then
 fi
 
 echo ""
+echo "9. Restarting services..."
+sudo systemctl restart php8.2-fpm
+sudo systemctl restart nginx
+
+echo ""
 echo "=========================================="
 echo "Deployment completed successfully!"
 echo "=========================================="
 echo ""
-echo "If you encounter permission issues, run:"
-echo "  sudo bash fix-permissions.sh"
+echo "Services restarted:"
+echo "  ✓ PHP 8.2-FPM"
+echo "  ✓ Nginx"
 echo ""
 
