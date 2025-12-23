@@ -48,33 +48,14 @@ mkdir -p bootstrap/cache
 
 echo ""
 echo "6. Fixing permissions..."
-# Ensure directories exist first
-sudo mkdir -p storage/app/public
-sudo mkdir -p storage/framework/{cache,sessions,testing,views}
-sudo mkdir -p storage/logs
-sudo mkdir -p bootstrap/cache
-
-# Set ownership
 sudo chown -R $WEB_USER:$WEB_USER storage bootstrap/cache
-
-# Set directory permissions (775 = rwxrwxr-x)
 sudo find storage -type d -exec chmod 775 {} \;
-sudo find bootstrap/cache -type d -exec chmod 775 {} \;
-
-# Set file permissions (664 = rw-rw-r--)
 sudo find storage -type f -exec chmod 664 {} \;
+sudo find bootstrap/cache -type d -exec chmod 775 {} \;
 sudo find bootstrap/cache -type f -exec chmod 664 {} \;
-
-# Ensure group ownership
 sudo chgrp -R $WEB_USER storage bootstrap/cache
-
-# Set sticky bit to preserve group ownership
 sudo find storage -type d -exec chmod g+s {} \;
 sudo find bootstrap/cache -type d -exec chmod g+s {} \;
-
-# Verify permissions
-echo "Verifying permissions..."
-php artisan storage:fix-permissions --check || echo "⚠ Some permission issues detected. Run: sudo bash fix-permissions.sh"
 
 echo ""
 echo "7. Creating storage link..."
