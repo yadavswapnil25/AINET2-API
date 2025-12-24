@@ -3514,7 +3514,7 @@ class AdminController extends Controller
         try {
             $validator = Validator::make($request->all(), [
                 'name' => 'required|string|max:255',
-                'logo' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'logo' => 'nullable|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
                 'subtitle' => 'nullable|string|max:255',
                 'link_url' => 'nullable|url',
                 'is_active' => 'nullable|boolean',
