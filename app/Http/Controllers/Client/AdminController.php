@@ -3525,20 +3525,21 @@ class AdminController extends Controller
                 return $this->error('Validation failed', 422, $validator->errors());
             }
 
-            $logoPath = null;
-            if ($request->hasFile('logo')) {
-                $stored = $request->file('logo')->store('sponsors', 'public');
-                $logoPath = 'storage/' . $stored; // public URL path
-            }
-
-            $sponsor = Sponsor::create([
+            $sponsorData = [
                 'name' => $request->name,
-                'logo_path' => $logoPath,
                 'subtitle' => $request->subtitle,
                 'link_url' => $request->link_url,
                 'is_active' => $request->boolean('is_active', true),
                 'sort_order' => $request->input('sort_order', 0),
-            ]);
+            ];
+
+            // Only set logo_path if a file is provided
+            if ($request->hasFile('logo')) {
+                $stored = $request->file('logo')->store('sponsors', 'public');
+                $sponsorData['logo_path'] = 'storage/' . $stored; // public URL path
+            }
+
+            $sponsor = Sponsor::create($sponsorData);
 
             $sponsor->logo_url = $sponsor->logo_path ? url($sponsor->logo_path) : null;
 
