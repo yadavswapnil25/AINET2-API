@@ -11,6 +11,8 @@ use App\Models\Blog;
 use App\Models\Banner;
 use App\Models\Event;
 use App\Models\Partner;
+use App\Models\Sponsor;
+use App\Models\Feedback;
 use App\Models\Gallery;
 use App\Models\Newsletter;
 use App\Models\News;
@@ -848,10 +850,8 @@ class AdminController extends Controller
                 ->unique()
                 ->values();
 
-            \Log::info('bulkDeletePpf request ids', ['raw_ids' => $incomingIds, 'normalized' => $ids->toArray()]);
 
             $existingIds = Ppf::whereIn('id', $ids)->pluck('id');
-            \Log::info('bulkDeletePpf existing ids', ['found_ids' => $existingIds->toArray()]);
 
             $missingIds = $ids->diff($existingIds)->values();
 
@@ -3425,6 +3425,462 @@ class AdminController extends Controller
             ]);
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve partners', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all sponsors with pagination
+     */
+    public function getSponsorList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'sort_order');
+            $sortOrder = $request->get('sort_order', 'asc');
+            $isActive = $request->get('is_active');
+
+            $query = Sponsor::query();
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'LIKE', "%{$search}%")
+                      ->orWhere('subtitle', 'LIKE', "%{$search}%");
+                });
+            }
+
+            if ($isActive !== null) {
+                $query->where('is_active', filter_var($isActive, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE));
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $sponsors = $query->paginate($perPage);
+
+            // Map with logo_url for convenience
+            $items = collect($sponsors->items())->map(function ($s) {
+                $s->logo_url = $s->logo_path ? url($s->logo_path) : null;
+                return $s;
+            });
+
+            return $this->success('Sponsors retrieved successfully', 200, [
+                'sponsors' => $items,
+                'pagination' => [
+                    'current_page' => $sponsors->currentPage(),
+                    'last_page' => $sponsors->lastPage(),
+                    'per_page' => $sponsors->perPage(),
+                    'total' => $sponsors->total(),
+                    'from' => $sponsors->firstItem(),
+                    'to' => $sponsors->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve sponsors', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function getSponsor(Request $request, $id)
+    {
+        try {
+            $sponsor = Sponsor::find($id);
+            if (!$sponsor) {
+                return $this->error('Sponsor not found', 404, [
+                    'message' => 'No sponsor found with the given ID'
+                ]);
+            }
+            $sponsor->logo_url = $sponsor->logo_path ? url($sponsor->logo_path) : null;
+            return $this->success('Sponsor retrieved successfully', 200, [
+                'sponsor' => $sponsor
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve sponsor', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function createSponsor(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'required|string|max:255',
+                'logo' => 'required|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'subtitle' => 'nullable|string|max:255',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|boolean',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $logoPath = null;
+            if ($request->hasFile('logo')) {
+                $stored = $request->file('logo')->store('sponsors', 'public');
+                $logoPath = 'storage/' . $stored; // public URL path
+            }
+
+            $sponsor = Sponsor::create([
+                'name' => $request->name,
+                'logo_path' => $logoPath,
+                'subtitle' => $request->subtitle,
+                'link_url' => $request->link_url,
+                'is_active' => $request->boolean('is_active', true),
+                'sort_order' => $request->input('sort_order', 0),
+            ]);
+
+            $sponsor->logo_url = $sponsor->logo_path ? url($sponsor->logo_path) : null;
+
+            return $this->success('Sponsor created successfully', 201, [
+                'sponsor' => $sponsor
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to create sponsor', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function updateSponsor(Request $request, $id)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'name' => 'sometimes|string|max:255',
+                'logo' => 'sometimes|image|mimes:jpg,jpeg,png,webp,svg|max:5120',
+                'subtitle' => 'nullable|string|max:255',
+                'link_url' => 'nullable|url',
+                'is_active' => 'nullable|in:0,1,true,false',
+                'sort_order' => 'nullable|integer|min:0',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $sponsor = Sponsor::find($id);
+            if (!$sponsor) {
+                return $this->error('Sponsor not found', 404, [
+                    'message' => 'No sponsor found with the given ID'
+                ]);
+            }
+
+            // For PUT requests with multipart/form-data, Laravel may not parse the body automatically
+            // Try to get data using input() directly, which works better with form-data
+            $updateData = [];
+            
+            // Get each field directly - input() works even when has() doesn't for multipart/form-data
+            $name = $request->input('name');
+            $subtitle = $request->input('subtitle');
+            $linkUrl = $request->input('link_url');
+            $isActive = $request->input('is_active');
+            $sortOrder = $request->input('sort_order');
+            
+            // Add to updateData only if they are not null
+            if ($name !== null) {
+                $updateData['name'] = $name;
+            }
+            if ($subtitle !== null) {
+                $updateData['subtitle'] = $subtitle;
+            }
+            if ($linkUrl !== null) {
+                $updateData['link_url'] = $linkUrl;
+            }
+            if ($isActive !== null) {
+                $updateData['is_active'] = $request->boolean('is_active');
+            }
+            if ($sortOrder !== null) {
+                $updateData['sort_order'] = (int) $sortOrder;
+            }
+            
+            // If updateData is empty, Laravel didn't parse multipart/form-data for PUT
+            // We need to manually parse it from raw content
+            if (empty($updateData)) {
+                $contentType = $request->header('Content-Type');
+                if (strpos($contentType, 'multipart/form-data') !== false) {
+                    // Extract boundary from Content-Type header
+                    // Format: multipart/form-data; boundary=--------------------------520066212698513265847079
+                    preg_match('/boundary=([^\s;]+)/', $contentType, $matches);
+                    $boundary = isset($matches[1]) ? trim($matches[1]) : null;
+                    
+                    if ($boundary) {
+                        $rawContent = $request->getContent();
+                        $parsedData = $this->parseMultipartFormData($rawContent, $boundary);
+                        
+                        // Use parsed data
+                        if (isset($parsedData['name']) && $parsedData['name'] !== '') {
+                            $updateData['name'] = $parsedData['name'];
+                        }
+                        if (isset($parsedData['subtitle']) && $parsedData['subtitle'] !== '') {
+                            $updateData['subtitle'] = $parsedData['subtitle'];
+                        }
+                        if (isset($parsedData['link_url']) && $parsedData['link_url'] !== '') {
+                            $updateData['link_url'] = $parsedData['link_url'];
+                        }
+                        if (isset($parsedData['is_active']) && $parsedData['is_active'] !== '') {
+                            $updateData['is_active'] = filter_var($parsedData['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? ($parsedData['is_active'] === '1' || $parsedData['is_active'] === 1);
+                        }
+                        if (isset($parsedData['sort_order']) && $parsedData['sort_order'] !== '') {
+                            $updateData['sort_order'] = (int) $parsedData['sort_order'];
+                        }
+                    }
+                }
+            }
+
+            if ($request->hasFile('logo')) {
+                // Delete old logo if exists
+                if ($sponsor->logo_path && file_exists(public_path($sponsor->logo_path))) {
+                    @unlink(public_path($sponsor->logo_path));
+                }
+                $stored = $request->file('logo')->store('sponsors', 'public');
+                $updateData['logo_path'] = 'storage/' . $stored;
+            }
+            $sponsor->update($updateData);
+            $sponsor->refresh();
+            $sponsor->logo_url = $sponsor->logo_path ? url($sponsor->logo_path) : null;
+
+            return $this->success('Sponsor updated successfully', 200, [
+                'sponsor' => $sponsor
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to update sponsor', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function deleteSponsor(Request $request, $id)
+    {
+        try {
+            $sponsor = Sponsor::find($id);
+            if (!$sponsor) {
+                return $this->error('Sponsor not found', 404, [
+                    'message' => 'No sponsor found with the given ID'
+                ]);
+            }
+
+            // Delete logo file if exists
+            if ($sponsor->logo_path && file_exists(public_path($sponsor->logo_path))) {
+                @unlink(public_path($sponsor->logo_path));
+            }
+
+            $sponsor->delete();
+
+            return $this->success('Sponsor deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete sponsor', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    public function bulkDeleteSponsor(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'ids' => 'required|array',
+                'ids.*' => 'required|integer|exists:sponsors,id',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $sponsors = Sponsor::whereIn('id', $request->ids)->get();
+
+            foreach ($sponsors as $sponsor) {
+                // Delete logo file if exists
+                if ($sponsor->logo_path && file_exists(public_path($sponsor->logo_path))) {
+                    @unlink(public_path($sponsor->logo_path));
+                }
+            }
+
+            Sponsor::whereIn('id', $request->ids)->delete();
+
+            return $this->success('Sponsors deleted successfully', 200, []);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to delete sponsors', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get active sponsors for website (public endpoint)
+     */
+    public function getWebsiteSponsors(Request $request)
+    {
+        try {
+            $query = Sponsor::where('is_active', true);
+
+            // Optional limit
+            $limit = $request->get('limit');
+            if ($limit && is_numeric($limit)) {
+                $query->limit((int)$limit);
+            }
+
+            // Sort by sort_order ascending
+            $sponsors = $query->orderBy('sort_order', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            $items = $sponsors->map(function ($s) {
+                return [
+                    'id' => $s->id,
+                    'name' => $s->name,
+                    'logo_url' => $s->logo_path ? url($s->logo_path) : null,
+                    'subtitle' => $s->subtitle,
+                    'link_url' => $s->link_url,
+                    'sort_order' => $s->sort_order,
+                ];
+            });
+
+            return $this->success('Sponsors retrieved successfully', 200, [
+                'sponsors' => $items,
+                'total' => $items->count()
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve sponsors', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Parse multipart/form-data manually for PUT requests
+     * Laravel doesn't parse multipart/form-data for PUT requests automatically
+     */
+    private function parseMultipartFormData($rawContent, $boundary)
+    {
+        $data = [];
+        $parts = explode('--' . $boundary, $rawContent);
+        
+        foreach ($parts as $part) {
+            // Skip empty parts and the closing boundary
+            if (empty(trim($part)) || trim($part) === '--') {
+                continue;
+            }
+            
+            // Split header and body
+            if (strpos($part, "\r\n\r\n") !== false) {
+                list($header, $body) = explode("\r\n\r\n", $part, 2);
+            } elseif (strpos($part, "\n\n") !== false) {
+                list($header, $body) = explode("\n\n", $part, 2);
+            } else {
+                continue;
+            }
+            
+            // Extract field name from Content-Disposition header
+            if (preg_match('/name="([^"]+)"/', $header, $nameMatches)) {
+                $fieldName = $nameMatches[1];
+                // Trim whitespace and newlines from body
+                $fieldValue = trim($body);
+                // Remove trailing boundary markers
+                $fieldValue = rtrim($fieldValue, "\r\n--");
+                
+                $data[$fieldName] = $fieldValue;
+            }
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Submit feedback (public endpoint)
+     */
+    public function submitFeedback(Request $request)
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'drf_id' => 'nullable|integer|exists:drves,id',
+                'rating' => 'nullable|integer|min:1|max:5',
+                'comment' => 'nullable|string|max:2000',
+                'email' => 'nullable|email|max:255',
+                'name' => 'nullable|string|max:255',
+            ]);
+
+            if ($validator->fails()) {
+                return $this->error('Validation failed', 422, $validator->errors());
+            }
+
+            $feedback = Feedback::create([
+                'drf_id' => $request->drf_id,
+                'rating' => $request->rating,
+                'comment' => $request->comment,
+                'email' => $request->email,
+                'name' => $request->name,
+            ]);
+
+            return $this->success('Feedback submitted successfully', 201, [
+                'feedback' => $feedback
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to submit feedback', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get all feedback with pagination (admin)
+     */
+    public function getFeedbackList(Request $request)
+    {
+        try {
+            $perPage = $request->get('per_page', 15);
+            $search = $request->get('search');
+            $sortBy = $request->get('sort_by', 'created_at');
+            $sortOrder = $request->get('sort_order', 'desc');
+
+            $query = Feedback::with('drf');
+
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('comment', 'LIKE', "%{$search}%")
+                      ->orWhere('email', 'LIKE', "%{$search}%")
+                      ->orWhere('name', 'LIKE', "%{$search}%");
+                });
+            }
+
+            $query->orderBy($sortBy, $sortOrder);
+
+            $feedbacks = $query->paginate($perPage);
+
+            return $this->success('Feedback retrieved successfully', 200, [
+                'feedbacks' => $feedbacks->items(),
+                'pagination' => [
+                    'current_page' => $feedbacks->currentPage(),
+                    'last_page' => $feedbacks->lastPage(),
+                    'per_page' => $feedbacks->perPage(),
+                    'total' => $feedbacks->total(),
+                    'from' => $feedbacks->firstItem(),
+                    'to' => $feedbacks->lastItem(),
+                ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve feedback', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())

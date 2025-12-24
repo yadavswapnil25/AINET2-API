@@ -11,7 +11,7 @@ class Drf extends Model
         'member', 'name', 'gender', 'age', 'institution',
         'address', 'city', 'pincode', 'state', 'country_code', 'phone_no', 'email',
         'areas', 'areas_of_interest', 'other', 'experience', 'conference', 'conference_attendance', 'types','you_are_register_as','pre_title',
-        'payment_status', 'payment_id', 'razorpay_order_id', 'user_id'
+        'payment_status', 'payment_id', 'razorpay_order_id', 'user_id', 'sponsor_id'
     ];
 
     /**
@@ -20,6 +20,22 @@ class Drf extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the sponsor associated with this DRF registration.
+     */
+    public function sponsor()
+    {
+        return $this->belongsTo(Sponsor::class);
+    }
+
+    /**
+     * Get the feedback for this DRF registration.
+     */
+    public function feedback()
+    {
+        return $this->hasOne(Feedback::class);
     }
  
 }

@@ -34,10 +34,12 @@ Route::get('/banners', [AdminController::class, 'getWebsiteBanners']);
 Route::get('/conference', [AdminController::class, 'getWebsiteConference']);
 Route::get('/events', [AdminController::class, 'getWebsiteEvents']);
 Route::get('/partners', [AdminController::class, 'getWebsitePartners']);
+Route::get('/sponsors', [AdminController::class, 'getWebsiteSponsors']);
 Route::get('/galleries', [AdminController::class, 'getWebsiteGalleries']);
 Route::get('/news', [AdminController::class, 'getWebsiteNews']);
 Route::get('/highlights', [AdminController::class, 'getWebsiteHighlights']);
 Route::post('/newsletter/subscribe', [AdminController::class, 'subscribeNewsletter']);
+Route::post('/feedback', [AdminController::class, 'submitFeedback']);
 
 // Admin authentication routes
 Route::prefix('admin')->group(function () {
@@ -117,6 +119,14 @@ Route::prefix('admin')->group(function () {
         Route::delete('/partners/{id}', [AdminController::class, 'deletePartner']);
         Route::delete('/partners/bulk', [AdminController::class, 'bulkDeletePartner']);
 
+        // Sponsor CRUD operations
+        Route::get('/sponsors', [AdminController::class, 'getSponsorList']);
+        Route::post('/sponsors', [AdminController::class, 'createSponsor']);
+        Route::get('/sponsors/{id}', [AdminController::class, 'getSponsor']);
+        Route::put('/sponsors/{id}', [AdminController::class, 'updateSponsor']);
+        Route::delete('/sponsors/{id}', [AdminController::class, 'deleteSponsor']);
+        Route::delete('/sponsors/bulk', [AdminController::class, 'bulkDeleteSponsor']);
+
         // Gallery CRUD operations
         Route::get('/galleries', [AdminController::class, 'getGalleryList']);
         Route::post('/galleries', [AdminController::class, 'createGallery']);
@@ -155,6 +165,9 @@ Route::prefix('admin')->group(function () {
         Route::get('/highlights/{id}', [AdminController::class, 'getHighlight']);
         Route::put('/highlights/{id}', [AdminController::class, 'updateHighlight']);
         Route::delete('/highlights/{id}', [AdminController::class, 'deleteHighlight']);
+
+        // Feedback CRUD operations
+        Route::get('/feedback', [AdminController::class, 'getFeedbackList']);
     });
 });
 

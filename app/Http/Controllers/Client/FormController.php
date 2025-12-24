@@ -17,7 +17,9 @@ use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use App\Mails\DrfPaymentReceiptMail;
+use App\Mails\DrfSubmissionConfirmationMail;
 use App\Mails\PpfSubmissionConfirmationMail;
 
 class FormController extends Controller
@@ -176,12 +178,6 @@ class FormController extends Controller
                 $drf->user_id = null;
             }
 
-            if ($drf->payment_status !== 'paid') {
-                $drf->payment_status = 'pending';
-                $drf->payment_id = null;
-                $drf->razorpay_order_id = null;
-            }
-
             if($request->conference === "Yes"){
                 $drf->conference = 'YES';
                 $drf->types = implode(',', $request->types ?? []);
@@ -191,9 +187,51 @@ class FormController extends Controller
             }
 
             $drf->conference_attendance = '9th_conference';
+
+            // Handle sponsor_id - preserve if already set, or set from request if provided
+            if ($request->has('sponsor_id') && !empty($request->sponsor_id)) {
+                $drf->sponsor_id = $request->sponsor_id;
+            }
+            // If sponsor_id is already set (e.g., from bulk import), it will be preserved automatically
+            // This ensures sponsored users keep their sponsor_id when updating their registration
+
+            // For sponsored users, mark as paid immediately
+            if ($drf->sponsor_id) {
+                $drf->payment_status = 'paid';
+                $drf->payment_id = 'SPONSORED-' . $drf->sponsor_id . '-' . now()->timestamp;
+                $drf->razorpay_order_id = null;
+            } elseif ($drf->payment_status !== 'paid') {
+                // For non-sponsored users, set to pending if not already paid
+                $drf->payment_status = 'pending';
+                $drf->payment_id = null;
+                $drf->razorpay_order_id = null;
+            }
  
                 $drf->save();
+                
+                // Refresh the model to ensure we have the latest data
+                $drf->refresh();
  
+                // Send confirmation email after form submission
+                try {
+                    // Use the smtp mailer explicitly to ensure emails are sent
+                    Mail::mailer('smtp')->send(new DrfSubmissionConfirmationMail($drf));
+                    Log::info('DRF submission confirmation email sent', [
+                        'drf_id' => $drf->id,
+                        'email' => $drf->email,
+                        'is_update' => $isUpdate,
+                        'mailer' => config('mail.default'),
+                    ]);
+                } catch (\Throwable $mailException) {
+                    Log::error('Failed to send DRF submission confirmation email', [
+                        'drf_id' => $drf->id,
+                        'email' => $drf->email,
+                        'error' => $mailException->getMessage(),
+                    ]);
+                    report($mailException);
+                    // Continue even if email fails
+                }
+
                 $message = $isUpdate ? 'DRF updated successfully' : 'DRF submitted successfully';
 
                 return $this->success($message, $isUpdate ? 200 : 201, [ 'id' => $drf->id, 'updated' => $isUpdate ]);
@@ -270,11 +308,105 @@ class FormController extends Controller
 
         $drf = Drf::findOrFail($validated['drf_id']);
         
-        if ($drf->payment_status === 'paid' && $drf->conference_attendance === '9th_conference') {
+        // Check if user is sponsored (has sponsor_id) FIRST - skip payment check for sponsored users
+        // Allow sponsored users to proceed even if already marked as paid
+        if ($drf->sponsor_id) {
+            // If already paid and sponsored, just return success (no need to send email again)
+            if ($drf->payment_status === 'paid') {
+                return response()->json([
+                    'status' => true,
+                    'message' => 'Registration confirmed. Payment not required for sponsored participants.',
+                    'data' => [
+                        'sponsored' => true,
+                        'sponsor_id' => $drf->sponsor_id,
+                        'payment_required' => false,
+                        'amount' => 0,
+                        'currency' => 'INR',
+                        'original_amount' => 0,
+                        'discounted_amount' => 0,
+                        'amount_in_rupees' => 0,
+                    ],
+                ]);
+            }
+            
+            // If sponsored but not yet marked as paid, mark as paid and send email
+            // Mark as paid without payment
+            $drf->payment_status = 'paid';
+            $paymentId = 'SPONSORED-' . $drf->sponsor_id . '-' . now()->timestamp;
+            $drf->payment_id = $paymentId;
+            $drf->razorpay_order_id = null;
+            $drf->save();
+
+            // Send confirmation email to sponsored user
+            try {
+                $invoiceNumber = sprintf('AINET-DRF26-%06d', $drf->id);
+                $paidAt = now();
+                $amountRupees = 0;
+                $originalAmountRupees = 0;
+                $discountAmount = 0;
+                $discountPercentage = 0;
+
+                // Generate PDF receipt for sponsored user
+                $pdf = Pdf::loadView('pdf.drf-invoice', [
+                    'drf' => $drf,
+                    'invoiceNumber' => $invoiceNumber,
+                    'paidAt' => $paidAt,
+                    'paymentId' => $paymentId,
+                    'orderId' => 'SPONSORED',
+                    'amount' => $amountRupees,
+                    'originalAmount' => $originalAmountRupees,
+                    'discountAmount' => $discountAmount,
+                    'discountPercentage' => $discountPercentage,
+                ]);
+
+                $pdfData = $pdf->output();
+
+                // Use the smtp mailer explicitly to ensure emails are sent
+                Mail::mailer('smtp')->send(new DrfPaymentReceiptMail(
+                    $drf,
+                    $invoiceNumber,
+                    $amountRupees,
+                    $paidAt,
+                    $paymentId,
+                    'SPONSORED',
+                    $pdfData,
+                    $originalAmountRupees,
+                    $discountAmount,
+                    $discountPercentage
+                ));
+                
+                Log::info('Sponsored user email sent successfully', [
+                    'drf_id' => $drf->id,
+                    'email' => $drf->email,
+                    'sponsor_id' => $drf->sponsor_id,
+                    'mailer' => config('mail.default'),
+                ]);
+            } catch (\Throwable $mailException) {
+                Log::error('Failed to send email to sponsored user', [
+                    'drf_id' => $drf->id,
+                    'email' => $drf->email,
+                    'sponsor_id' => $drf->sponsor_id,
+                    'error' => $mailException->getMessage(),
+                    'trace' => $mailException->getTraceAsString(),
+                ]);
+                report($mailException);
+                // Continue even if email fails
+            }
+
             return response()->json([
-                'status' => false,
-                'message' => 'Payment has already been completed for this registration.',
-            ], 409);
+                'status' => true,
+                'message' => 'Registration confirmed. Payment not required for sponsored participants.',
+                'data' => [
+                    'sponsored' => true,
+                    'sponsor_id' => $drf->sponsor_id,
+                    'payment_required' => false,
+                    'amount' => 0,
+                    'currency' => 'INR',
+                    'original_amount' => 0,
+                    'discounted_amount' => 0,
+                    'amount_in_rupees' => 0,
+                ],
+            ]);
         }
 
         // Check for membership discount and link user_id
@@ -499,7 +631,8 @@ class FormController extends Controller
 
             $pdfData = $pdf->output();
 
-            Mail::send(new DrfPaymentReceiptMail(
+            // Use the smtp mailer explicitly to ensure emails are sent
+            Mail::mailer('smtp')->send(new DrfPaymentReceiptMail(
                 $drf,
                 $invoiceNumber,
                 $amountRupees,
@@ -511,7 +644,21 @@ class FormController extends Controller
                 $discountAmount,
                 $discountPercentage
             ));
+            
+            Log::info('DRF payment confirmation email sent successfully', [
+                'drf_id' => $drf->id,
+                'email' => $drf->email,
+                'payment_id' => $validated['razorpay_payment_id'],
+                'mailer' => config('mail.default'),
+            ]);
         } catch (\Throwable $mailException) {
+            Log::error('Failed to send DRF payment confirmation email', [
+                'drf_id' => $drf->id,
+                'email' => $drf->email,
+                'payment_id' => $validated['razorpay_payment_id'] ?? null,
+                'error' => $mailException->getMessage(),
+                'trace' => $mailException->getTraceAsString(),
+            ]);
             report($mailException);
         }
 
