@@ -352,6 +352,7 @@ class AdminController extends Controller
                 'conference_attendance' => 'sometimes|nullable|string',
                 'you_are_register_as' => 'sometimes|nullable|string',
                 'pre_title' => 'sometimes|nullable|string',
+                'sponsor_id' => 'sometimes|nullable|integer|exists:sponsors,id',
             ]);
 
             if ($validator->fails()) {
@@ -371,14 +372,20 @@ class AdminController extends Controller
             $allowedFields = [
                 'member', 'name', 'gender', 'age', 'institution', 'address',
                 'city', 'pincode', 'state', 'country_code', 'phone_no', 'email',
-                'areas', 'other', 'areas_of_interest', 'experience', 'conference', 'types', 'conference_attendance', 'you_are_register_as', 'pre_title'
+                'areas', 'other', 'areas_of_interest', 'experience', 'conference', 'types', 'conference_attendance', 'you_are_register_as', 'pre_title', 'sponsor_id'
             ];
             
             foreach ($allowedFields as $field) {
                 if (isset($data[$field])) {
-                    // Age is always kept as string (for ranges like "41-50" or single values like "10")
-                    // Already normalized above to ensure it's a string
-                    $updateData[$field] = $data[$field];
+                    // Handle special cases
+                    if ($field === 'sponsor_id') {
+                        // Convert empty string or 'null' to null for sponsor_id
+                        $updateData[$field] = ($data[$field] === '' || $data[$field] === 'null' || $data[$field] === null) ? null : (int)$data[$field];
+                    } else {
+                        // Age is always kept as string (for ranges like "41-50" or single values like "10")
+                        // Already normalized above to ensure it's a string
+                        $updateData[$field] = $data[$field];
+                    }
                 }
             }
 
