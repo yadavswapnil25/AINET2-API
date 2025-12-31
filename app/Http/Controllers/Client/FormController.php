@@ -672,7 +672,7 @@ class FormController extends Controller
     {
         $delegateType = trim((string) $drf->you_are_register_as);
         $now = now();
-        $cutoff = now()->setDate(2025, 12, 30)->endOfDay();
+        $cutoff = now()->setDate(2026, 01, 01)->endOfDay();
         $isEarlyBird = $now->lessThanOrEqualTo($cutoff);
 
         $delegateTypeLower = strtolower($delegateType);
