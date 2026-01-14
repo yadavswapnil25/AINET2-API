@@ -18,6 +18,14 @@ class Event extends Model
         'link_url',
         'event_type',
         'is_active',
+        'is_live',
+        'stream_type',
+        'stream_url',
+        'embed_code',
+        'stream_id',
+        'banner_image',
+        'guest_speaker',
+        'topic_description',
         'sort_order',
         'starts_at',
         'ends_at',
@@ -25,6 +33,7 @@ class Event extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_live' => 'boolean',
         'sort_order' => 'integer',
         'event_date' => 'date',
         'event_date_end' => 'date',

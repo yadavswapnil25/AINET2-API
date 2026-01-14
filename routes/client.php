@@ -32,6 +32,7 @@ Route::post('/validate-membership-discount', [FormController::class, 'validateMe
 // Public website endpoints
 Route::get('/banners', [AdminController::class, 'getWebsiteBanners']);
 Route::get('/conference', [AdminController::class, 'getWebsiteConference']);
+Route::get('/webinar', [AdminController::class, 'getWebsiteWebinar']);
 Route::get('/events', [AdminController::class, 'getWebsiteEvents']);
 Route::get('/partners', [AdminController::class, 'getWebsitePartners']);
 Route::get('/sponsors', [AdminController::class, 'getWebsiteSponsors']);
@@ -168,6 +169,7 @@ Route::prefix('admin')->group(function () {
 
         // Feedback CRUD operations
         Route::get('/feedback', [AdminController::class, 'getFeedbackList']);
+        Route::get('/feedback/{id}', [AdminController::class, 'getFeedback']);
     });
 });
 

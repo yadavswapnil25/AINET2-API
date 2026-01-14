@@ -2886,6 +2886,14 @@ class AdminController extends Controller
                 'link_url' => 'nullable|url',
                 'event_type' => 'nullable|string|max:100',
                 'is_active' => 'nullable|boolean',
+                'is_live' => 'nullable|boolean',
+                'stream_type' => 'nullable|in:youtube,facebook,zoom,custom,embed',
+                'stream_url' => 'nullable|url',
+                'embed_code' => 'nullable|string',
+                'stream_id' => 'nullable|string|max:255',
+                'banner_image' => 'nullable|string|max:500',
+                'guest_speaker' => 'nullable|string|max:255',
+                'topic_description' => 'nullable|string',
                 'sort_order' => 'nullable|integer|min:0',
                 'starts_at' => 'nullable|date',
                 'ends_at' => 'nullable|date|after_or_equal:starts_at',
@@ -2897,7 +2905,9 @@ class AdminController extends Controller
 
             $event = Event::create($request->only([
                 'title', 'location', 'event_date', 'event_date_end', 'description',
-                'link_url', 'event_type', 'is_active', 'sort_order', 'starts_at', 'ends_at'
+                'link_url', 'event_type', 'is_active', 'is_live', 'stream_type',
+                'stream_url', 'embed_code', 'stream_id', 'banner_image', 'guest_speaker',
+                'topic_description', 'sort_order', 'starts_at', 'ends_at'
             ]));
 
             return $this->success('Event created successfully', 201, [
@@ -2924,6 +2934,14 @@ class AdminController extends Controller
                 'link_url' => 'nullable|url',
                 'event_type' => 'nullable|string|max:100',
                 'is_active' => 'nullable|boolean',
+                'is_live' => 'nullable|boolean',
+                'stream_type' => 'nullable|in:youtube,facebook,zoom,custom,embed',
+                'stream_url' => 'nullable|url',
+                'embed_code' => 'nullable|string',
+                'stream_id' => 'nullable|string|max:255',
+                'banner_image' => 'nullable|string|max:500',
+                'guest_speaker' => 'nullable|string|max:255',
+                'topic_description' => 'nullable|string',
                 'sort_order' => 'nullable|integer|min:0',
                 'starts_at' => 'nullable|date',
                 'ends_at' => 'nullable|date|after_or_equal:starts_at',
@@ -2942,7 +2960,9 @@ class AdminController extends Controller
 
             $event->update($request->only([
                 'title', 'location', 'event_date', 'event_date_end', 'description',
-                'link_url', 'event_type', 'is_active', 'sort_order', 'starts_at', 'ends_at'
+                'link_url', 'event_type', 'is_active', 'is_live', 'stream_type',
+                'stream_url', 'embed_code', 'stream_id', 'banner_image', 'guest_speaker',
+                'topic_description', 'sort_order', 'starts_at', 'ends_at'
             ]));
 
             return $this->success('Event updated successfully', 200, [
@@ -3063,6 +3083,16 @@ class AdminController extends Controller
                 'link_url' => $conference->link_url,
                 'event_type' => $conference->event_type,
                 'sort_order' => $conference->sort_order,
+                'is_live' => $conference->is_live ?? false,
+                'stream_type' => $conference->stream_type,
+                'stream_url' => $conference->stream_url,
+                'embed_code' => $conference->embed_code,
+                'stream_id' => $conference->stream_id,
+                'banner_image' => $conference->banner_image,
+                'guest_speaker' => $conference->guest_speaker,
+                'topic_description' => $conference->topic_description,
+                'starts_at' => $conference->starts_at ? $conference->starts_at->format('Y-m-d H:i:s') : null,
+                'ends_at' => $conference->ends_at ? $conference->ends_at->format('Y-m-d H:i:s') : null,
             ];
 
             return $this->success('Conference retrieved successfully', 200, [
@@ -3149,6 +3179,16 @@ class AdminController extends Controller
                     'link_url' => $e->link_url,
                     'event_type' => $e->event_type,
                     'sort_order' => $e->sort_order,
+                    'is_live' => $e->is_live ?? false,
+                    'stream_type' => $e->stream_type,
+                    'stream_url' => $e->stream_url,
+                    'embed_code' => $e->embed_code,
+                    'stream_id' => $e->stream_id,
+                    'banner_image' => $e->banner_image,
+                    'guest_speaker' => $e->guest_speaker,
+                    'topic_description' => $e->topic_description,
+                    'starts_at' => $e->starts_at ? $e->starts_at->format('Y-m-d H:i:s') : null,
+                    'ends_at' => $e->ends_at ? $e->ends_at->format('Y-m-d H:i:s') : null,
                 ];
             });
 
@@ -3886,6 +3926,32 @@ class AdminController extends Controller
                     'from' => $feedbacks->firstItem(),
                     'to' => $feedbacks->lastItem(),
                 ]
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve feedback', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
+     * Get single feedback by ID (admin)
+     */
+    public function getFeedback(Request $request, $id)
+    {
+        try {
+            $feedback = Feedback::with('drf')->find($id);
+
+            if (!$feedback) {
+                return $this->error('Feedback not found', 404, [
+                    'message' => 'No feedback found with the given ID'
+                ]);
+            }
+
+            return $this->success('Feedback retrieved successfully', 200, [
+                'feedback' => $feedback
             ]);
         } catch (\Throwable $e) {
             return $this->error('Failed to retrieve feedback', 500, [
