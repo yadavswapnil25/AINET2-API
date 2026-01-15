@@ -3206,6 +3206,87 @@ class AdminController extends Controller
     }
 
     /**
+     * Get upcoming webinar for website (public endpoint)
+     * Returns the first active webinar event
+     */
+    public function getWebsiteWebinar(Request $request)
+    {
+        try {
+            $now = now();
+
+            $query = Event::where('is_active', true)
+                ->where('event_type', 'webinar')
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('starts_at')
+                      ->orWhere('starts_at', '<=', $now);
+                })
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('ends_at')
+                      ->orWhere('ends_at', '>=', $now);
+                });
+
+            // Get the first webinar (sorted by sort_order)
+            $webinar = $query->orderBy('sort_order', 'asc')
+                ->orderBy('event_date', 'asc')
+                ->orderBy('created_at', 'desc')
+                ->first();
+
+            if (!$webinar) {
+                return $this->success('No upcoming webinar', 200, [
+                    'webinar' => null
+                ]);
+            }
+
+            // Format event date for display
+            $dateDisplay = '';
+            if ($webinar->event_date) {
+                if ($webinar->event_date_end && $webinar->event_date_end != $webinar->event_date) {
+                    // Date range
+                    $dateDisplay = $webinar->event_date->format('d F Y') . ' - ' . $webinar->event_date_end->format('d F Y');
+                } else {
+                    // Single date
+                    $dateDisplay = $webinar->event_date->format('d F Y');
+                }
+            } else {
+                $dateDisplay = 'TBA';
+            }
+
+            $webinarData = [
+                'id' => $webinar->id,
+                'title' => $webinar->title,
+                'location' => $webinar->location,
+                'event_date' => $webinar->event_date ? $webinar->event_date->format('Y-m-d') : null,
+                'event_date_end' => $webinar->event_date_end ? $webinar->event_date_end->format('Y-m-d') : null,
+                'date_display' => $dateDisplay,
+                'description' => $webinar->description,
+                'link_url' => $webinar->link_url,
+                'event_type' => $webinar->event_type,
+                'sort_order' => $webinar->sort_order,
+                'is_live' => $webinar->is_live ?? false,
+                'stream_type' => $webinar->stream_type,
+                'stream_url' => $webinar->stream_url,
+                'embed_code' => $webinar->embed_code,
+                'stream_id' => $webinar->stream_id,
+                'banner_image' => $webinar->banner_image,
+                'guest_speaker' => $webinar->guest_speaker,
+                'topic_description' => $webinar->topic_description,
+                'starts_at' => $webinar->starts_at ? $webinar->starts_at->format('Y-m-d H:i:s') : null,
+                'ends_at' => $webinar->ends_at ? $webinar->ends_at->format('Y-m-d H:i:s') : null,
+            ];
+
+            return $this->success('Webinar retrieved successfully', 200, [
+                'webinar' => $webinarData
+            ]);
+        } catch (\Throwable $e) {
+            return $this->error('Failed to retrieve webinar', 500, [
+                'exception' => $e->getMessage(),
+                'line' => $e->getLine(),
+                'file' => basename($e->getFile())
+            ]);
+        }
+    }
+
+    /**
      * Get all partners with pagination
      */
     public function getPartnerList(Request $request)
