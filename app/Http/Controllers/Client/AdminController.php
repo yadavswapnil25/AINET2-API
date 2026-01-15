@@ -3214,19 +3214,21 @@ class AdminController extends Controller
         try {
             $now = now();
 
+            // For webinars, show active ones regardless of start date (to show upcoming webinars)
+            // Only filter out if they've already ended
             $query = Event::where('is_active', true)
                 ->where('event_type', 'webinar')
                 ->where(function ($q) use ($now) {
-                    $q->whereNull('starts_at')
-                      ->orWhere('starts_at', '<=', $now);
-                })
-                ->where(function ($q) use ($now) {
+                    // Show if: no end date, or end date is in the future, or event_date_end is in the future
                     $q->whereNull('ends_at')
-                      ->orWhere('ends_at', '>=', $now);
+                      ->orWhere('ends_at', '>=', $now)
+                      ->orWhereNull('event_date_end')
+                      ->orWhere('event_date_end', '>=', $now->format('Y-m-d'));
                 });
 
-            // Get the first webinar (sorted by sort_order)
+            // Get the first webinar (sorted by sort_order, then by start date)
             $webinar = $query->orderBy('sort_order', 'asc')
+                ->orderBy('starts_at', 'asc')
                 ->orderBy('event_date', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->first();
