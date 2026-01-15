@@ -3214,16 +3214,13 @@ class AdminController extends Controller
         try {
             $now = now();
 
-            // For webinars, show active ones regardless of start date (to show upcoming webinars)
-            // Only filter out if they've already ended
+            // For webinars, show active ones that haven't ended
+            // Try case-insensitive match for event_type
             $query = Event::where('is_active', true)
-                ->where('event_type', 'webinar')
+                ->whereRaw('LOWER(event_type) = ?', ['webinar'])
                 ->where(function ($q) use ($now) {
-                    // Show if: no end date, or end date is in the future, or event_date_end is in the future
                     $q->whereNull('ends_at')
-                      ->orWhere('ends_at', '>=', $now)
-                      ->orWhereNull('event_date_end')
-                      ->orWhere('event_date_end', '>=', $now->format('Y-m-d'));
+                      ->orWhere('ends_at', '>=', $now);
                 });
 
             // Get the first webinar (sorted by sort_order, then by start date)
@@ -3232,6 +3229,15 @@ class AdminController extends Controller
                 ->orderBy('event_date', 'asc')
                 ->orderBy('created_at', 'desc')
                 ->first();
+            
+            // Fallback: try without date filter if still not found
+            if (!$webinar) {
+                $webinar = Event::where('is_active', true)
+                    ->whereRaw('LOWER(event_type) = ?', ['webinar'])
+                    ->orderBy('sort_order', 'asc')
+                    ->orderBy('created_at', 'desc')
+                    ->first();
+            }
 
             if (!$webinar) {
                 return $this->success('No upcoming webinar', 200, [
