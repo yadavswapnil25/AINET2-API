@@ -4797,6 +4797,7 @@ class AdminController extends Controller
                     'id' => $highlight->id,
                     'heading' => $highlight->heading,
                     'subheading' => $highlight->subheading,
+                    'link_url' => $highlight->link_url,
                 ]
             ]);
         } catch (\Throwable $e) {
@@ -4863,6 +4864,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'heading' => 'required|string|max:255',
                 'subheading' => 'required|string',
+                'link_url' => 'nullable|url|max:500',
                 'is_active' => 'sometimes|boolean',
                 'sort_order' => 'sometimes|integer',
             ]);
@@ -4900,6 +4902,7 @@ class AdminController extends Controller
             $validator = Validator::make($request->all(), [
                 'heading' => 'sometimes|string|max:255',
                 'subheading' => 'sometimes|string',
+                'link_url' => 'nullable|url|max:500',
                 'is_active' => 'sometimes|boolean',
                 'sort_order' => 'sometimes|integer',
             ]);

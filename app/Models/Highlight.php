@@ -12,6 +12,7 @@ class Highlight extends Model
     protected $fillable = [
         'heading',
         'subheading',
+        'link_url',
         'is_active',
         'sort_order',
     ];
