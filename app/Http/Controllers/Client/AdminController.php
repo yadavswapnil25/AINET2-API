@@ -4787,7 +4787,7 @@ class AdminController extends Controller
                 return $this->success('Highlight retrieved successfully', 200, [
                     'highlight' => [
                         'heading' => 'HIGHLIGHTS',
-                        'subheading' => '9th AINET International Conference 2026 - To Be Announced SOON'
+                        'subheading' => ''
                     ]
                 ]);
             }
