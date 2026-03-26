@@ -43,7 +43,7 @@ class MailHelper
      */
     public function name(string $address = 'from'): string
     {
-        return config('mail.base.from.name');
+        return config('mail.from.name', 'AINET');
     }
 
     /**
@@ -54,7 +54,7 @@ class MailHelper
      */
     public function address(string $address = 'from'): string
     {
-        return config('mail.base.from.address');
+        return config('mail.from.address', 'noreply@theainet.net');
     }
 
 
