@@ -180,4 +180,6 @@ Route::post('/auth/reset-password', [LoginController::class, 'resetPassword'])->
 Route::middleware('auth:api')->group(function () {
     Route::get('/auth/profile', [LoginController::class, 'profile']);
     Route::post('/auth/{id}/profile', [LoginController::class, 'updateProfile']);
+    Route::post('/auth/membership/renew/order', [MembershipController::class, 'renewalOrder']);
+    Route::post('/auth/membership/renew/confirm', [MembershipController::class, 'confirmRenewal']);
 });
