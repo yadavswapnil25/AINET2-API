@@ -62,6 +62,18 @@ class RazorpayService
     }
 
     /**
+     * Fetch an order by its ID.
+     *
+     * @return array<string,mixed>
+     */
+    public function fetchOrder(string $orderId): array
+    {
+        $response = $this->request("orders/{$orderId}", 'get');
+
+        return $response->json();
+    }
+
+    /**
      * Capture an authorised payment.
      *
      * @param  string  $paymentId

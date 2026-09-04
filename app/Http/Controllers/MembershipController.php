@@ -17,12 +17,15 @@ use Illuminate\Support\Facades\Log;
 use App\Http\Requests\MembershipSignupRequest;
 use App\Http\Requests\ConfirmMembershipPaymentRequest;
 use App\Services\RazorpayService;
+use App\Services\MembershipPricingService;
 use Illuminate\Support\Str;
 class MembershipController extends Controller
 {
     use Response;
-    public function __construct(protected RazorpayService $razorpay)
-    {
+    public function __construct(
+        protected RazorpayService $razorpay,
+        protected MembershipPricingService $pricing
+    ) {
     }
 
     private function composeFullName(
@@ -162,22 +165,80 @@ class MembershipController extends Controller
         }
     }
 
-    private function getPlanAmount(string $type, string $plan): float
+    /**
+     * Public pricing catalogue.
+     *
+     * Lets the website render live prices and the promotional discount
+     * without hardcoding any amounts, and makes the promo cut-off date take
+     * effect on its own without a redeploy.
+     */
+    public function showPricing(): JsonResponse
     {
-        $prices = [
-            'Individual'    => ['Annual' => 500.0,  'LongTerm' => 1200.0, 'Overseas' => 1725.0],
-            'Institutional' => ['Annual' => 1000.0, 'LongTerm' => 2500.0, 'Overseas' => 5000.0],
-        ];
-
-        return (float) ($prices[$type][$plan] ?? 500.0);
+        return $this->success(
+            'Membership pricing fetched successfully.',
+            200,
+            $this->pricing->publicCatalogue()
+        );
     }
 
-    private function getPlanMonths(string $plan): int
+    /**
+     * Create the Razorpay order for a pending signup.
+     *
+     * The amount is derived server side from the plan stored against the user
+     * at signup, so the client can neither pick its own price nor pay after
+     * the promotional cut-off at promotional rates.
+     */
+    public function signupOrder(Request $request): JsonResponse
     {
-        return match ($plan) {
-            'LongTerm' => 36,
-            default    => 12,
-        };
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $user = User::find($request->input('user_id'));
+
+        if (!$user) {
+            return $this->error('User not found.', 404);
+        }
+
+        if ($user->payment_status === 'paid') {
+            return $this->error('Payment already confirmed for this membership.', 409);
+        }
+
+        $type = (string) $user->membership_type;
+        $plan = (string) $user->membership_plan;
+
+        if (!config("membership.plans.{$type}.{$plan}")) {
+            return $this->error('This membership record does not have a valid plan.', 422);
+        }
+
+        $breakdown = $this->pricing->breakdown($type, $plan, MembershipPricingService::CONTEXT_NEW);
+
+        $order = $this->razorpay->createOrder(
+            $breakdown['price'],
+            'INR',
+            'AINET-NEW-' . $user->id . '-' . time(),
+            [
+                'user_id' => (string) $user->id,
+                'plan'    => $plan,
+                'type'    => $type,
+                'context' => MembershipPricingService::CONTEXT_NEW,
+            ]
+        );
+
+        $user->razorpay_order_id = $order['id'] ?? null;
+        $user->save();
+
+        return $this->success('Order created successfully', 200, [
+            'order'    => $order,
+            'amount'   => $order['amount'] ?? $breakdown['price_in_paise'],
+            'currency' => $order['currency'] ?? 'INR',
+            'pricing'  => $breakdown,
+            'customer' => [
+                'name'    => $user->name,
+                'email'   => $user->email,
+                'contact' => $user->mobile,
+            ],
+        ]);
     }
 
     public function renewalOrder(Request $request): JsonResponse
@@ -191,19 +252,25 @@ class MembershipController extends Controller
         $plan = $request->input('membership_plan');
         $type = $request->input('membership_type');
 
-        $amount = $this->getPlanAmount($type, $plan);
+        $breakdown = $this->pricing->breakdown($type, $plan, MembershipPricingService::CONTEXT_RENEWAL);
 
         $order = $this->razorpay->createOrder(
-            $amount,
+            $breakdown['price'],
             'INR',
             'AINET-RENEW-' . $user->id . '-' . time(),
-            ['user_id' => (string) $user->id, 'plan' => $plan, 'type' => $type]
+            [
+                'user_id' => (string) $user->id,
+                'plan'    => $plan,
+                'type'    => $type,
+                'context' => MembershipPricingService::CONTEXT_RENEWAL,
+            ]
         );
 
         return $this->success('Renewal order created', 200, [
             'order'    => $order,
-            'amount'   => $order['amount'],
+            'amount'   => $order['amount'] ?? $breakdown['price_in_paise'],
             'currency' => $order['currency'] ?? 'INR',
+            'pricing'  => $breakdown,
             'customer' => [
                 'name'    => $user->name,
                 'email'   => $user->email,
@@ -260,6 +327,23 @@ class MembershipController extends Controller
                 ]);
             }
 
+            $order = $this->razorpay->fetchOrder($razorpayOrderId);
+            $orderNotes = $order['notes'] ?? [];
+
+            if ((string) ($orderNotes['user_id'] ?? '') !== (string) $user->id
+                || (string) ($orderNotes['plan'] ?? '') !== $plan
+                || (string) ($orderNotes['type'] ?? '') !== $type) {
+                return $this->error('Payment verification failed.', 422, [
+                    'message' => 'This order was not created for the selected plan on this account.',
+                ]);
+            }
+
+            if ((int) ($order['amount'] ?? 0) !== $paymentAmount) {
+                return $this->error('Payment verification failed.', 422, [
+                    'message' => 'The amount paid does not match the order.',
+                ]);
+            }
+
             if ($paymentStatus === 'authorized') {
                 $payment       = $this->razorpay->capturePayment($razorpayPaymentId, $paymentAmount);
                 $paymentStatus = $payment['status'] ?? null;
@@ -275,7 +359,7 @@ class MembershipController extends Controller
                 ]);
             }
 
-            $months    = $this->getPlanMonths($plan);
+            $months    = $this->pricing->months($type, $plan);
             $paidAt    = Carbon::now();
             $expiresAt = $paidAt->copy()->addMonths($months)->endOfMonth();
 
@@ -292,7 +376,7 @@ class MembershipController extends Controller
 
             DB::commit();
 
-            $amount = $this->getPlanAmount($type, $plan);
+            $amount = $paymentAmount / 100;
 
             // Email to member
             try {
@@ -376,6 +460,12 @@ class MembershipController extends Controller
                 return $this->error('Payment already confirmed for this membership.', 409);
             }
 
+            if ($user->razorpay_order_id !== $razorpayOrderId) {
+                return $this->error('Payment verification failed.', 422, [
+                    'message' => 'The payment is not linked with this membership registration.',
+                ]);
+            }
+
             if (!$this->razorpay->verifySignature($razorpayOrderId, $razorpayPaymentId, $razorpaySignature)) {
                 return $this->error('Payment verification failed.', 422, [
                     'message' => 'The payment signature could not be verified.',
@@ -395,6 +485,21 @@ class MembershipController extends Controller
             if (($payment['order_id'] ?? null) !== $razorpayOrderId) {
                 return $this->error('Payment verification failed.', 422, [
                     'message' => 'The payment is not linked with the provided order.',
+                ]);
+            }
+
+            $order = $this->razorpay->fetchOrder($razorpayOrderId);
+            $orderNotes = $order['notes'] ?? [];
+
+            if ((string) ($orderNotes['user_id'] ?? '') !== (string) $user->id) {
+                return $this->error('Payment verification failed.', 422, [
+                    'message' => 'This order was not created for this account.',
+                ]);
+            }
+
+            if ((int) ($order['amount'] ?? 0) !== $paymentAmount) {
+                return $this->error('Payment verification failed.', 422, [
+                    'message' => 'The amount paid does not match the order.',
                 ]);
             }
 

@@ -15,10 +15,14 @@ Route::get('/test', function () {
     ]);
 });
 
+// Membership pricing catalogue (base prices + current promotional discount)
+Route::get('/membership/pricing', [MembershipController::class, 'showPricing']);
+
 Route::post('/membership-signup', [MembershipController::class, 'signup']);
 Route::prefix('payments')->group(function () {
     Route::post('/order', [PaymentController::class, 'createOrder']);
 });
+Route::post('/membership-signup/order', [MembershipController::class, 'signupOrder']);
 Route::post('/membership-signup/confirm', [MembershipController::class, 'confirmPayment']);
 Route::get('eventValidationHandle', [PaymentController::class, 'eventValidationHandle']);
 Route::post('/ainet2025ppf', [FormController::class, 'storePpfs']);
