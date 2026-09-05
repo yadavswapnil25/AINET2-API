@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class AdminController extends Controller
@@ -2882,6 +2883,8 @@ class AdminController extends Controller
                 'location' => 'required|string|max:255',
                 'event_date' => 'nullable|date',
                 'event_date_end' => 'nullable|date|after_or_equal:event_date',
+                'event_time' => 'nullable|date_format:H:i,H:i:s',
+                'event_time_end' => 'nullable|date_format:H:i,H:i:s',
                 'description' => 'nullable|string',
                 'link_url' => 'nullable|url',
                 'event_type' => 'nullable|string|max:100',
@@ -2904,7 +2907,8 @@ class AdminController extends Controller
             }
 
             $event = Event::create($request->only([
-                'title', 'location', 'event_date', 'event_date_end', 'description',
+                'title', 'location', 'event_date', 'event_date_end',
+                'event_time', 'event_time_end', 'description',
                 'link_url', 'event_type', 'is_active', 'is_live', 'stream_type',
                 'stream_url', 'embed_code', 'stream_id', 'banner_image', 'guest_speaker',
                 'topic_description', 'sort_order', 'starts_at', 'ends_at'
@@ -2930,6 +2934,8 @@ class AdminController extends Controller
                 'location' => 'sometimes|string|max:255',
                 'event_date' => 'nullable|date',
                 'event_date_end' => 'nullable|date|after_or_equal:event_date',
+                'event_time' => 'nullable|date_format:H:i,H:i:s',
+                'event_time_end' => 'nullable|date_format:H:i,H:i:s',
                 'description' => 'nullable|string',
                 'link_url' => 'nullable|url',
                 'event_type' => 'nullable|string|max:100',
@@ -2959,7 +2965,8 @@ class AdminController extends Controller
             }
 
             $event->update($request->only([
-                'title', 'location', 'event_date', 'event_date_end', 'description',
+                'title', 'location', 'event_date', 'event_date_end',
+                'event_time', 'event_time_end', 'description',
                 'link_url', 'event_type', 'is_active', 'is_live', 'stream_type',
                 'stream_url', 'embed_code', 'stream_id', 'banner_image', 'guest_speaker',
                 'topic_description', 'sort_order', 'starts_at', 'ends_at'
@@ -3111,6 +3118,39 @@ class AdminController extends Controller
      * Get active events for website (public endpoint)
      * Excludes conference events by default (can be included with exclude_conference=false)
      */
+    /**
+     * Event time for display, in 12 hour clock with AM/PM.
+     *
+     * Returns '6:30 PM', or '6:30 PM - 8:00 PM' when an end time is set, and
+     * an empty string when the event has no time against it.
+     */
+    private function formatEventTimeDisplay($start, $end): string
+    {
+        if (empty($start)) {
+            return '';
+        }
+
+        try {
+            $startDisplay = Carbon::parse((string) $start)->format('g:i A');
+        } catch (\Throwable $e) {
+            return '';
+        }
+
+        if (empty($end)) {
+            return $startDisplay;
+        }
+
+        try {
+            $endDisplay = Carbon::parse((string) $end)->format('g:i A');
+        } catch (\Throwable $e) {
+            return $startDisplay;
+        }
+
+        return $endDisplay === $startDisplay
+            ? $startDisplay
+            : $startDisplay . ' - ' . $endDisplay;
+    }
+
     public function getWebsiteEvents(Request $request)
     {
         try {
@@ -3168,13 +3208,21 @@ class AdminController extends Controller
                     $dateDisplay = 'TBA';
                 }
 
+                $timeDisplay = $this->formatEventTimeDisplay($e->event_time, $e->event_time_end);
+
                 return [
                     'id' => $e->id,
                     'title' => $e->title,
                     'location' => $e->location,
                     'event_date' => $e->event_date ? $e->event_date->format('Y-m-d') : null,
                     'event_date_end' => $e->event_date_end ? $e->event_date_end->format('Y-m-d') : null,
+                    'event_time' => $e->event_time ? (string) $e->event_time : null,
+                    'event_time_end' => $e->event_time_end ? (string) $e->event_time_end : null,
                     'date_display' => $dateDisplay,
+                    'time_display' => $timeDisplay,
+                    'date_time_display' => $timeDisplay === ''
+                        ? $dateDisplay
+                        : $dateDisplay . ', ' . $timeDisplay,
                     'description' => $e->description,
                     'link_url' => $e->link_url,
                     'event_type' => $e->event_type,
