@@ -3119,10 +3119,10 @@ class AdminController extends Controller
      * Excludes conference events by default (can be included with exclude_conference=false)
      */
     /**
-     * Event time for display, in 12 hour clock with AM/PM.
+     * Event time for display, on a 24 hour clock.
      *
-     * Returns '6:30 PM', or '6:30 PM - 8:00 PM' when an end time is set, and
-     * an empty string when the event has no time against it.
+     * Returns '18:30', or '18:30 - 20:00' when an end time is set, and an
+     * empty string when the event has no time against it.
      */
     private function formatEventTimeDisplay($start, $end): string
     {
@@ -3131,7 +3131,7 @@ class AdminController extends Controller
         }
 
         try {
-            $startDisplay = Carbon::parse((string) $start)->format('g:i A');
+            $startDisplay = Carbon::parse((string) $start)->format('H:i');
         } catch (\Throwable $e) {
             return '';
         }
@@ -3141,7 +3141,7 @@ class AdminController extends Controller
         }
 
         try {
-            $endDisplay = Carbon::parse((string) $end)->format('g:i A');
+            $endDisplay = Carbon::parse((string) $end)->format('H:i');
         } catch (\Throwable $e) {
             return $startDisplay;
         }
