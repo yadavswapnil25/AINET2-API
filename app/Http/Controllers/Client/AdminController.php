@@ -4777,31 +4777,37 @@ class AdminController extends Controller
     public function getWebsiteHighlights(Request $request)
     {
         try {
-            $highlight = Highlight::where('is_active', true)
+            $highlights = Highlight::where('is_active', true)
                 ->orderBy('sort_order', 'asc')
                 ->orderBy('created_at', 'desc')
-                ->first();
-
-            if (!$highlight) {
-                // Return default values if no highlight exists
-                return $this->success('Highlight retrieved successfully', 200, [
-                    'highlight' => [
-                        'heading' => 'HIGHLIGHTS',
-                        'subheading' => ''
-                    ]
-                ]);
-            }
-
-            return $this->success('Highlight retrieved successfully', 200, [
-                'highlight' => [
+                ->get()
+                ->map(fn ($highlight) => [
                     'id' => $highlight->id,
                     'heading' => $highlight->heading,
                     'subheading' => $highlight->subheading,
                     'link_url' => $highlight->link_url,
-                ]
+                ])
+                ->values();
+
+            if ($highlights->isEmpty()) {
+                // Return default values if no highlight exists
+                return $this->success('Highlights retrieved successfully', 200, [
+                    'highlights' => [],
+                    'highlight' => [
+                        'heading' => 'HIGHLIGHTS',
+                        'subheading' => '',
+                        'link_url' => null,
+                    ]
+                ]);
+            }
+
+            return $this->success('Highlights retrieved successfully', 200, [
+                'highlights' => $highlights,
+                // Kept so any older client still reading a single highlight works.
+                'highlight' => $highlights->first(),
             ]);
         } catch (\Throwable $e) {
-            return $this->error('Failed to retrieve highlight', 500, [
+            return $this->error('Failed to retrieve highlights', 500, [
                 'exception' => $e->getMessage(),
                 'line' => $e->getLine(),
                 'file' => basename($e->getFile())
